@@ -12,21 +12,15 @@ class Vehicle {
     this.maxForce = 0.1;
     // rayon du véhicule
     this.r = 16;
+    this.perceptionRadius = 60;
+    this.rayonPerception = 200;
     
   }
 
   
   applyBehaviors(target) {
-    let force= createVector(0,0);
-
-    // on ne cherche la cible que si elle est à une distance inférieure au rayon de perception
-    // on tient compte du rayon de la target aussi
-    let d = p5.Vector.dist(this.pos, target);
-    if (d < this.rayonPerception + this.r) {
-      force = this.seek(target);
-    }
-   
-    
+    let force = this.seek(target);
+    //let force = this.flee(target);
     this.applyForce(force);
   }
 
@@ -79,7 +73,12 @@ applyBehaviors(target) {
   // comportement de fuite, inverse de seek
   flee(target) {
     // inverse de seek !
-    return this.seek(target).mult(-1);
+    // Craig Reynolds : on inverse la vitesse désirée, pas la force
+    let desiredSpeed = p5.Vector.sub(this.pos, target);
+    desiredSpeed.setMag(this.maxSpeed);
+    let force = p5.Vector.sub(desiredSpeed, this.vel);
+    force.limit(this.maxForce);
+    return force;
   }
 
   // --------------------------------------------
@@ -180,5 +179,33 @@ applyBehaviors(target) {
     } else if (this.pos.y < -this.r) {
       this.pos.y = height + this.r;
     }
+  }
+}
+
+class Target extends Vehicle {
+  constructor(x, y) {
+    super(x, y);
+    this.r = 16;
+    this.maxSpeed = 2;
+    this.maxForce = 0;
+    this.vel = p5.Vector.random2D().setMag(this.maxSpeed);
+  }
+
+  applyBehaviors() {
+  }
+
+  update() {
+    let jitter = p5.Vector.random2D().mult(0.15);
+    this.vel.add(jitter);
+    this.vel.limit(this.maxSpeed);
+    this.pos.add(this.vel);
+  }
+
+  show() {
+    push();
+    noStroke();
+    fill("red");
+    circle(this.pos.x, this.pos.y, this.r * 2);
+    pop();
   }
 }

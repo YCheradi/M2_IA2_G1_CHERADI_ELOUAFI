@@ -9,90 +9,7 @@ class Vehicle {
     this.maxForce = 0.2;
     this.r = 16;
     this.rayonZoneDeFreinage = 100;
-
-    // pour comportement wander
-    // pour comportement wander
-    this.distanceCercle = 150;
-    this.wanderRadius = 50;
-    this.wanderTheta = -Math.PI / 2;
-    this.displaceRange = 0.3;
-
-  }
-
-  wander() {
-    // point devant le véhicule, centre du cercle
-    let pointDevant = this.vel.copy();
-    pointDevant.setMag(this.distanceCercle);
-    pointDevant.add(this.pos);
-
-    push();
-    if (Vehicle.debug) {
-      // on dessine le cercle en rouge
-      // on le dessine sous la forme d'une petit cercle rouge
-      fill("red");
-      noStroke();
-      circle(pointDevant.x, pointDevant.y, 8);
-
-      // on dessine le cercle autour
-      // Cercle autour du point
-      noFill();
-      stroke(255);
-      circle(pointDevant.x, pointDevant.y, this.wanderRadius * 2);
-
-      // on dessine une ligne qui relie le vaisseau à ce point
-      // c'est la ligne blanche en face du vaisseau
-      strokeWeight(2);
-      // ligne en pointillés
-      stroke(255, 255, 255, 80);
-      drawingContext.setLineDash([5, 15]);
-      stroke(255, 255, 255, 80);
-      line(this.pos.x, this.pos.y, pointDevant.x, pointDevant.y);
-
-    }
-
-    // On va s'occuper de calculer le point vert SUR LE CERCLE
-    // il fait un angle wanderTheta avec le centre du cercle
-    // l'angle final par rapport à l'axe des X c'est l'angle du vaisseau
-    // + cet angle
-    let theta = this.wanderTheta + this.vel.heading();
-    let pointSurLeCercle = createVector(0, 0);
-    pointSurLeCercle.x = this.wanderRadius * cos(theta);
-    pointSurLeCercle.y = this.wanderRadius * sin(theta);
-
-    // on rajoute ces distances au point rouge au centre du cercle
-    pointSurLeCercle.add(pointDevant);
-
-    if (Vehicle.debug) {
-      // on le dessine sous la forme d'un cercle vert
-      fill("green");
-      noStroke();
-      circle(pointSurLeCercle.x, pointSurLeCercle.y, 16);
-
-      // on dessine le vecteur qui va du centre du vaisseau
-      // à ce point vert sur le cercle
-      stroke("yellow");
-      strokeWeight(1);
-      // pas en pointillés mais une ligne pleine
-      drawingContext.setLineDash([]);
-      line(this.pos.x, this.pos.y, pointSurLeCercle.x, pointSurLeCercle.y);
-    }
-
-    // entre chaque image on va déplacer aléatoirement
-    // le point vert en changeant un peu son angle...
-    this.wanderTheta += random(-this.displaceRange, this.displaceRange);
-
-    // D'après l'article, la force est égale au vecteur qui va du
-    // centre du vaisseau, à ce point vert. On va aussi la limiter
-    // à this.maxForce
-    // REMPLACER LA LIGNE SUIVANTE !
-    let force = p5.Vector.sub(pointSurLeCercle, this.pos);
-    // On met la force à maxForce
-    force.setMag(this.maxForce);
-
-    pop();
-
-    // et on la renvoie au cas où....
-    return force;
+    this.couleur = color(255);
   }
 
   evade(vehicle) {
@@ -119,7 +36,157 @@ class Vehicle {
   }
 
   flee(target) {
-    // recopier code de flee de l'exemple précédent
+    // Craig Reynolds : on inverse la vitesse désirée, pas la force
+    let desiredSpeed = p5.Vector.sub(this.pos, target);
+    desiredSpeed.setMag(this.maxSpeed);
+    let force = p5.Vector.sub(desiredSpeed, this.vel);
+    force.limit(this.maxForce);
+    return force;
+  }
+
+  separate(vehicles, desiredSeparation = 40) {
+    let steer = createVector(0, 0);
+    let count = 0;
+    for (let other of vehicles) {
+      if (other === this) continue;
+      let d = p5.Vector.dist(this.pos, other.pos);
+      if (d > 0 && d < desiredSeparation) {
+        let diff = p5.Vector.sub(this.pos, other.pos);
+        diff.normalize();
+        diff.div(d);
+        steer.add(diff);
+        count++;
+      }
+    }
+    if (count > 0) {
+      steer.div(count);
+    }
+    if (steer.mag() > 0) {
+      steer.setMag(this.maxSpeed);
+      steer.sub(this.vel);
+      steer.limit(this.maxForce);
+    }
+    return steer;
+  }
+
+  align(vehicles, neighborDist = 60) {
+    let sum = createVector(0, 0);
+    let count = 0;
+    for (let other of vehicles) {
+      if (other === this) continue;
+      let d = p5.Vector.dist(this.pos, other.pos);
+      if (d > 0 && d < neighborDist) {
+        sum.add(other.vel);
+        count++;
+      }
+    }
+    if (count === 0) return createVector(0, 0);
+    sum.div(count);
+    sum.setMag(this.maxSpeed);
+    let steer = p5.Vector.sub(sum, this.vel);
+    steer.limit(this.maxForce);
+    return steer;
+  }
+
+  cohesion(vehicles, neighborDist = 60) {
+    let sum = createVector(0, 0);
+    let count = 0;
+    for (let other of vehicles) {
+      if (other === this) continue;
+      let d = p5.Vector.dist(this.pos, other.pos);
+      if (d > 0 && d < neighborDist) {
+        sum.add(other.pos);
+        count++;
+      }
+    }
+    if (count === 0) return createVector(0, 0);
+    sum.div(count);
+    return this.seek(sum);
+  }
+
+  flock(vehicles) {
+    let sep = this.separate(vehicles, 40);
+    let ali = this.align(vehicles, 70);
+    let coh = this.cohesion(vehicles, 70);
+    sep.mult(1.4);
+    ali.mult(1.0);
+    coh.mult(0.8);
+    let force = createVector(0, 0);
+    force.add(sep);
+    force.add(ali);
+    force.add(coh);
+    force.limit(this.maxForce * 3);
+    return force;
+  }
+
+  avoidObstacles(obstacles, lookAhead = 80) {
+    if (!obstacles || obstacles.length === 0) return createVector(0, 0);
+    if (this.vel.mag() === 0) return createVector(0, 0);
+
+    let ahead = this.vel.copy();
+    ahead.setMag(lookAhead);
+    ahead.add(this.pos);
+
+    let threat = null;
+    let minD = Infinity;
+    for (let obs of obstacles) {
+      let d = p5.Vector.dist(ahead, obs.pos);
+      if (d < obs.r + this.r) {
+        if (d < minD) {
+          minD = d;
+          threat = obs;
+        }
+      }
+    }
+
+    if (!threat) return createVector(0, 0);
+
+    let desired = p5.Vector.sub(ahead, threat.pos);
+    desired.setMag(this.maxSpeed);
+    let steer = p5.Vector.sub(desired, this.vel);
+    steer.limit(this.maxForce * 2);
+    return steer;
+  }
+
+  followPath(pathPoints, pathRadius = 40, predictDist = 40) {
+    if (!pathPoints || pathPoints.length < 2) return createVector(0, 0);
+
+    let predict = this.vel.copy();
+    if (predict.mag() === 0) {
+      predict = createVector(1, 0);
+    }
+    predict.setMag(predictDist);
+    let predictLoc = p5.Vector.add(this.pos, predict);
+
+    let normalPoint = null;
+    let targetPoint = null;
+    let worldRecord = Infinity;
+
+    for (let i = 0; i < pathPoints.length - 1; i++) {
+      let a = pathPoints[i];
+      let b = pathPoints[i + 1];
+
+      let ap = p5.Vector.sub(predictLoc, a);
+      let ab = p5.Vector.sub(b, a);
+      ab.normalize();
+      ab.mult(ap.dot(ab));
+      let normal = p5.Vector.add(a, ab);
+
+      let distToSegment = p5.Vector.dist(predictLoc, normal);
+      if (distToSegment < worldRecord) {
+        worldRecord = distToSegment;
+        normalPoint = normal;
+        let dir = p5.Vector.sub(b, a);
+        dir.normalize();
+        dir.mult(30);
+        targetPoint = p5.Vector.add(normal, dir);
+      }
+    }
+
+    if (normalPoint && worldRecord > pathRadius) {
+      return this.seek(targetPoint);
+    }
+    return createVector(0, 0);
   }
 
   seek(target, arrival = false, d=0) {
@@ -152,6 +219,13 @@ class Vehicle {
       // qui devient inversement proportionnelle à la distance.
       // si d = rayon alors desiredSpeed = maxSpeed
       // si d = 0 alors desiredSpeed = 0
+      // map fait exactement ça: 
+      // les paramètres sont:
+      // la valeur à transformer (ici distance)
+      // la valeur min de cette valeur (ici 0)
+      // la valeur max de cette valeur (ici this.rayonZoneDeFreinage)
+      // la nouvelle valeur min (ici 0)
+      // la nouvelle valeur max (ici this.maxSpeed)
       if (distance < this.rayonZoneDeFreinage) {
         valueDesiredSpeed = map(distance, d, this.rayonZoneDeFreinage, 0, this.maxSpeed);
       }
@@ -184,7 +258,7 @@ class Vehicle {
     
     stroke(255);
     strokeWeight(2);
-    fill(255);
+    fill(this.couleur);
     stroke(0);
     strokeWeight(2);
     push();

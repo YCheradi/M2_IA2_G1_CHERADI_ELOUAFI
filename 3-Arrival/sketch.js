@@ -3,7 +3,11 @@ let target;
 let vehicle;
 let vehicles = [];
 let snakes = [];
-// mode = pour changer le comportement de l'application
+let vehiclesWander = [];
+// Texte
+let font;
+let points = [];
+// mode (snake ou text)
 let mode = "snake";
 
 
@@ -40,6 +44,7 @@ function creerVehicules(n) {
     let v = new Vehicle(random(width), random(height));
     vehicles.push(v);
   }
+
 }
 
 // appelée 60 fois par seconde
@@ -49,64 +54,6 @@ function draw() {
   // pour effet psychedelique
   //background(0, 0, 0, 10);
 
-  // On dessine les snakes instances de la classe Snake
-  snakes.forEach(snake => {
-    let targetBruitee = target.copy();
-    // Le 1er serpent sera sur la gauche de la souris à 50 pixels
-    // Le 2ème à droite, etc.
-    let index = snakes.indexOf(snake);
-    let angleOffset = map(index, 0, snakes.length, -PI / 6, PI / 6);
-    let distanceFromTarget = 50;
-    let offsetX = cos(angleOffset) * distanceFromTarget;
-    let offsetY = sin(angleOffset) * distanceFromTarget;
-    targetBruitee.x += offsetX;
-    targetBruitee.y += offsetY; 
-    snake.move(targetBruitee);
-    snake.show();
-  });
-
-  dessinerLesPointsDuTexte();
-
-  target.x = mouseX;
-  target.y = mouseY;
-
-  // dessin de la cible à la position de la souris
-  push();
-  fill(255, 0, 0);
-  noStroke();
-  ellipse(target.x, target.y, 32);
-  pop();
-
-  // si on a affaire au premier véhicule
-  // alors il suit la souris (target)
-  let steeringForce;
-  // le premier véhicule suit la souris avec arrivée
-  vehicles.forEach((vehicle, index) => {
-    switch (mode) {
-      case "snake":
-        if (index === 0) {
-          // le premier véhicule suit la souris avec arrivée
-          steeringForce = vehicle.wander();
-        } else {
-          // les autres véhicules suivent le véhicule précédent avec arrivée
-          let cible = vehicles[index - 1].pos;
-          steeringForce = vehicle.arrive(cible, 30);
-        };
-        break;
-      case "text":
-        // chaque véhicule suit le point correspondant du texte
-        let cibleTexte = points[index % points.length];
-        let cible = createVector(cibleTexte.x, cibleTexte.y);
-        steeringForce = vehicle.arrive(cible);
-        break;
-    }
-    vehicle.applyForce(steeringForce);
-    vehicle.update();
-    vehicle.show();
-  });
-}
-
-function dessinerLesPointsDuTexte() {
   // On affiche le texte avec des cercles définis par le tableau points
   points.forEach(pt => {
     push();
@@ -115,24 +62,77 @@ function dessinerLesPointsDuTexte() {
     circle(pt.x, pt.y, 15);
     pop();
   });
+
+  switch (mode) {
+    case "snake":
+
+ // Cible qui suit la souris, cercle rouge de rayon 32
+  target.x = mouseX;
+  target.y = mouseY;
+
+  // dessin de la cible
+  push();
+  fill(255, 0, 0);
+  noStroke();
+  ellipse(target.x, target.y, 32);
+  pop();
+
+  vehicles.forEach((vehicle, index) => {
+    // si on a affaire au premier véhicule
+    // alors il suit la souris (target)
+    let steeringForce;
+
+    if (index === 0) {
+      // le premier véhicule suit la souris avec arrivée
+      steeringForce = vehicle.arrive(target);
+    } else {
+      // Je suis un suiveur, je poursuis le véhicule 
+      // précédent avec arrivée
+      let vehiculePrecedent = vehicles[index - 1];
+      steeringForce = vehicle.arrive(vehiculePrecedent.pos, 30);
+    }
+    
+    vehicle.applyForce(steeringForce);
+    vehicle.update();
+    vehicle.show();
+  })
+
+  // Déplacement du snake (si présent)
+  snakes.forEach(s => {
+    s.move(target);
+    s.show();
+  });
+      break;
+
+    case "text":
+      vehicles.forEach((vehicle, index) => {
+        // chaque véhicule vise un point du texte
+        let pt = points[index];
+        let target = createVector(pt.x, pt.y);
+        let steeringForce = vehicle.arrive(target);
+        vehicle.applyForce(steeringForce);
+        vehicle.update();
+        vehicle.show();
+      });
+      break;
+  }
+ 
 }
 
 function keyPressed() {
   if (key === 'd') {
     Vehicle.debug = !Vehicle.debug;
+  } else if(key === 'w') {
+    if (vehiclesWander) {
+      // Je crée un nouveau véhicule en mode wander
+      let v = new Vehicle(random(width), random(height));
+      v.r = 60; // plus grand
+      v.couleur = color(0, 255, 0); // vert
+      vehiclesWander.push(v);
+    }
   } else if (key === 's') {
     mode = "snake";
   } else if (key === 't') {
     mode = "text";
-  } else if (key === 'a') {
-    // on crée un nouveau snake
-    // taille aléatoire entre 10 et 50
-    let taille = floor(random(10, 50));
-    // couleur aléatoire
-    let couleur = color(random(255), random(255), random(255));
-    let snake = new SnakeWander(random(width), random(height), taille, 20, couleur);
-    snakes.push(snake);
   }
-  // todo : touche "s" fait le snake, "v" ajoute un véhicule,
-  // "t" passe en mode="texte" etc.
 }
