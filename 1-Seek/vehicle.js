@@ -12,15 +12,45 @@ class Vehicle {
     this.maxForce = 0.1;
     // rayon du véhicule
     this.r = 16;
-    this.perceptionRadius = 60;
     
   }
 
+  
   applyBehaviors(target) {
-    let force = this.seek(target);
-    //let force = this.flee(target);
+    let force= createVector(0,0);
+
+    // on ne cherche la cible que si elle est à une distance inférieure au rayon de perception
+    // on tient compte du rayon de la target aussi
+    let d = p5.Vector.dist(this.pos, target);
+    if (d < this.rayonPerception + this.r) {
+      force = this.seek(target);
+    }
+   
+    
     this.applyForce(force);
   }
+
+  /* Si on voulait un comportement de fuite que quand on est dans le rayon de perception des
+   vehicules
+applyBehaviors(target) {
+    //let force = this.seek(target);
+    let force;
+    
+    // Je ne veux fuir que si la cible est dans mon rayon de perception
+    // on calcule la distance entre le véhicule et la cible
+    let d = p5.Vector.dist(this.pos, target);
+    if (d < this.rayonPerception) {
+      // on fuit la cible
+      this.oldMaxSpeed = this.maxSpeed;
+      this.maxSpeed = this.vitesseDeFuite;
+      force = this.flee(target);
+    } else {
+      // on reprend la vitesse normale
+      this.maxSpeed = this.oldMaxSpeed;
+    }
+    this.applyForce(force);
+  }
+    */
 
   // seek est un comportement qui permet de faire se rapprocher le véhicule de 
   // la cible passée en paramètre (un vecteur p5.Vector, par exemple la position de 
@@ -109,6 +139,11 @@ class Vehicle {
     circle(0, 0, this.perceptionRadius*2);
     // restauration du contexte graphique, le 0, 0 redevient le coin en haut à gauche
     // de l'écran, les couleurs et épaisseurs de traits redeviennent celles d'avant
+
+    // Je dessine le rayon de perception
+    stroke("white");
+    noFill();
+    circle(0, 0, this.rayonPerception * 2);
     pop();
 
     // dessin sous la forme d'une flèche du vecteur vitesse
