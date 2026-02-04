@@ -1,0 +1,99 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  background: black;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+}
+
+#hud {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  color: white;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  background: rgba(0,0,0,0.55);
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  min-width: 260px;
+}
+
+#hud .bar {
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.12);
+  overflow: hidden;
+  margin: 6px 0;
+}
+
+#hud .bar > div {
+  height: 100%;
+}
+
+#hud .hp > div {
+  background: rgba(255, 80, 80, 0.9);
+}
+
+#hud .xp > div {
+  background: rgba(80, 180, 255, 0.9);
+}
+
+#overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+#panel {
+  width: min(760px, calc(100vw - 40px));
+  background: rgba(0,0,0,0.72);
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 12px;
+  padding: 18px;
+}
+
+#panel h1 {
+  margin: 0 0 8px 0;
+  font-size: 22px;
+}
+
+#panel p {
+  margin: 0 0 12px 0;
+  opacity: 0.9;
+}
+
+#choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.choice {
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 12px;
+  cursor: pointer;
+  background: rgba(255,255,255,0.06);
+}
+
+.choice:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+.kbd {
+  display: inline-block;
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.35);
+  font-size: 12px;
+}
