@@ -1,16 +1,24 @@
 class Projectile {
-  constructor(x, y, dir, mode = 'blaster', damageMul = 1, pierceBonus = 0) {
+  constructor(x, y, dir, mode = 'blaster', damageMul = 1, pierceBonus = 0, spriteKey = null, speedMul = 1, sizeMul = 1) {
     this.pos = createVector(x, y);
     this.mode = mode;
+    this.spriteKey = spriteKey;
+    this.speedMul = speedMul;
+    this.sizeMul = sizeMul;
     let sp = upgrades.projectileSpeed;
     if (this.mode === 'laser') sp *= 1.25;
     else if (this.mode === 'ion') sp *= 0.95;
+    sp *= (this.speedMul ?? 1);
     this.vel = dir.copy().setMag(sp);
     this.acc = createVector(0, 0);
     this.maxSpeed = sp;
     this.maxForce = this.mode === 'laser' ? 1.35 : 1.2;
     this.desiredVel = this.vel.copy();
     this.r = this.mode === 'laser' ? 4 : 5;
+    if (this.spriteKey) {
+      let sm = (this.sizeMul ?? 1);
+      this.r = max(this.r, 14 * sm);
+    }
     let dmg = upgrades.damage;
     if (this.mode === 'laser') dmg = floor(dmg * 0.9) + 1;
     else if (this.mode === 'ion') dmg = floor(dmg * 1.25) + 1;
@@ -49,10 +57,34 @@ class Projectile {
     if (p5.Vector.dist(this.pos, player.pos) > 1200) this.dead = true;
   }
 
-  draw(alpha) {
+  draw(alpha = 255) {
     push();
     noFill();
     let a = min(alpha, 220);
+
+    let spritePack = (typeof voidShipSprites !== 'undefined') ? voidShipSprites : null;
+    let spriteImg = null;
+    if (spritePack && spritePack.projectiles && this.spriteKey && spritePack.projectiles[this.spriteKey]) {
+      spriteImg = spritePack.projectiles[this.spriteKey];
+    }
+
+    if (spriteImg) {
+      let dir = this.vel.copy();
+      if (dir.mag() === 0) dir = createVector(0, -1);
+      let heading = dir.heading() + HALF_PI;
+
+      push();
+      translate(this.pos.x, this.pos.y);
+      rotate(heading);
+      imageMode(CENTER);
+      tint(255, min(255, a));
+      let sc = (this.r * 5.6) / max(1, spriteImg.width);
+      image(spriteImg, 0, 0, spriteImg.width * sc, spriteImg.height * sc);
+      pop();
+
+      pop();
+      return;
+    }
 
     let coreCol = [200, 255, 220];
     let col = [80, 255, 140];

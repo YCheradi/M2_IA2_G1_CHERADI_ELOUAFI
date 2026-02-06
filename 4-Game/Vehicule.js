@@ -245,10 +245,12 @@ class Vehicule {
 }
 
 class Player {
-  constructor(x, y) {
+  constructor(x, y, machine = null) {
     this.pos = createVector(x, y);
     this.vel = createVector(0, 0);
     this.r = 14;
+    this.machine = null;
+    this.setMachine(machine);
     this.hp = upgrades.maxHp;
     this.xp = 0;
     this.totalXp = 0;
@@ -263,14 +265,39 @@ class Player {
     this.shieldHits = 0;
     this.phase = random(1000);
 
-    this.shipType = 'fighter';
-    this.weaponMode = 'blaster';
-    this.baseWeaponMode = 'blaster';
+    this.shipType = (this.machine && this.machine.shipType) ? this.machine.shipType : 'fighter';
+    this.weaponMode = (this.machine && this.machine.baseWeaponMode) ? this.machine.baseWeaponMode : 'blaster';
+    this.baseWeaponMode = this.weaponMode;
     this.weaponModeUntilMs = 0;
     this.tempTripleUntilMs = 0;
 
     this.shipBuffType = '';
     this.shipBuffUntilMs = 0;
+  }
+
+  setMachine(machine) {
+    if (machine) {
+      this.machine = { ...machine };
+      if (machine.voidSprite) {
+        this.machine.voidSprite = { ...machine.voidSprite };
+      }
+    } else {
+      this.machine = null;
+    }
+    if (this.machine && this.machine.r) {
+      this.r = this.machine.r;
+    }
+    if (this.machine && this.machine.shipType) {
+      this.shipType = this.machine.shipType;
+    }
+    if (this.machine && this.machine.baseWeaponMode) {
+      this.baseWeaponMode = this.machine.baseWeaponMode;
+      this.weaponMode = this.baseWeaponMode;
+    }
+    if (typeof upgrades !== 'undefined' && upgrades && typeof upgrades.maxHp !== 'undefined') {
+      let mul = (this.machine && typeof this.machine.maxHpMul === 'number') ? this.machine.maxHpMul : 1;
+      this.hp = min(this.hp, upgrades.maxHp * mul);
+    }
   }
 
   update() {
@@ -296,12 +323,14 @@ class Player {
 
     if (now < this.dashingUntilMs) {
       let dashDir = this.lastMoveDir.copy();
-      dashDir.setMag(upgrades.dashSpeed);
+      let dashMul = (this.machine && typeof this.machine.dashSpeedMul === 'number') ? this.machine.dashSpeedMul : 1;
+      dashDir.setMag(upgrades.dashSpeed * dashMul);
       this.pos.add(dashDir);
     } else {
       if (dir.mag() > 0) {
         dir.normalize();
-        let sp = upgrades.moveSpeed;
+        let moveMul = (this.machine && typeof this.machine.moveSpeedMul === 'number') ? this.machine.moveSpeedMul : 1;
+        let sp = upgrades.moveSpeed * moveMul;
         if (now < this.shipBuffUntilMs) {
           if (this.shipBuffType === 'interceptor') sp *= 1.22;
           else if (this.shipBuffType === 'bomber') sp *= 0.92;
@@ -317,7 +346,9 @@ class Player {
     if (upgrades.regenPerSec > 0) {
       let dt = (now - this.lastRegenMs) / 1000;
       this.lastRegenMs = now;
-      this.hp = min(upgrades.maxHp, this.hp + upgrades.regenPerSec * dt);
+      let hpMul = (this.machine && typeof this.machine.maxHpMul === 'number') ? this.machine.maxHpMul : 1;
+      let regenMul = (this.machine && typeof this.machine.regenMul === 'number') ? this.machine.regenMul : 1;
+      this.hp = min(upgrades.maxHp * hpMul, this.hp + upgrades.regenPerSec * regenMul * dt);
     }
   }
 
@@ -341,9 +372,12 @@ class Player {
   tryDash() {
     let now = millis();
     if (now < this.nextDashAtMs) return;
-    this.dashingUntilMs = now + upgrades.dashDurationMs;
-    this.invulnerableUntilMs = now + upgrades.dashDurationMs + 120;
-    this.nextDashAtMs = now + upgrades.dashCooldownMs;
+    let durMul = (this.machine && typeof this.machine.dashDurationMul === 'number') ? this.machine.dashDurationMul : 1;
+    let cdMul = (this.machine && typeof this.machine.dashCooldownMul === 'number') ? this.machine.dashCooldownMul : 1;
+    let dur = upgrades.dashDurationMs * durMul;
+    this.dashingUntilMs = now + dur;
+    this.invulnerableUntilMs = now + dur + 120;
+    this.nextDashAtMs = now + upgrades.dashCooldownMs * cdMul;
   }
 
   takeDamage(amount) {
@@ -373,6 +407,46 @@ class Player {
     let dashing = this.dashingUntilMs > now;
     this.phase += 0.08;
 
+    if (typeof playerSprite !== 'undefined' && playerSprite) {
+      let dir = this.lastMoveDir.copy();
+      if (dir.mag() === 0) dir = createVector(0, -1);
+      let heading = dir.heading() + HALF_PI;
+      let tilt = 0;
+      if (keys.a) tilt -= 0.16;
+      if (keys.d) tilt += 0.16;
+      if (dashing) tilt *= 1.6;
+
+      push();
+      translate(this.pos.x, this.pos.y);
+      rotate(heading + tilt);
+      imageMode(CENTER);
+      tint(255, alpha);
+
+      let s = (this.r * 4.6) / max(1, playerSprite.width);
+      let w = playerSprite.width * s;
+      let h = playerSprite.height * s;
+      image(playerSprite, 0, 0, w, h);
+
+      if (this.shieldHits > 0 || invul) {
+        push();
+        blendMode(ADD);
+        noFill();
+        let a = invul ? min(200, alpha) : min(150, alpha);
+        stroke(140, 220, 255, a);
+        strokeWeight(max(2, this.r * 0.22));
+        circle(0, 0, w * 1.15);
+        stroke(220, 250, 255, a * 0.45);
+        strokeWeight(max(1, this.r * 0.12));
+        circle(0, 0, w * 1.32);
+        blendMode(BLEND);
+        pop();
+      }
+
+      pop();
+      pop();
+      return;
+    }
+
     noStroke();
     let halo = [80, 180, 255];
     if (this.shipType === 'interceptor') halo = [140, 220, 255];
@@ -380,7 +454,7 @@ class Player {
     fill(halo[0], halo[1], halo[2], min(alpha, 55));
     circle(this.pos.x, this.pos.y, this.r * 3.2);
 
-    if (this.shieldHits > 0) {
+    if (this.shieldHits > 0 || invul) {
       noFill();
       stroke(255, 240, 140, min(alpha, 200));
       strokeWeight(3);

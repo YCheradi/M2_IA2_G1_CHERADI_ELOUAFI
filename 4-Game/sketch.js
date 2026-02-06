@@ -36,6 +36,14 @@ let settings = {
   heatShimmer: true,
   casual: true,
 };
+let voidBeamSettings = {
+  length: 520,
+  thickness: 10,
+  damageMul: 1.0,
+  durationMs: null,
+};
+
+let playerSprite;
 
 let audioCtx = null;
 let masterGain = null;
@@ -514,10 +522,9 @@ function applyAid(type) {
   if (type === 'weapon_laser') {
     player.weaponMode = 'laser';
     player.weaponModeUntilMs = now + 12000;
-    player.tempTripleUntilMs = max(player.tempTripleUntilMs || 0, now + 6000);
   } else if (type === 'weapon_ion') {
     player.weaponMode = 'ion';
-    player.weaponModeUntilMs = now + 11000;
+    player.weaponModeUntilMs = now + 12000;
   } else if (type === 'spell_shield') {
     player.shieldHits = (player.shieldHits || 0) + 3;
     playSfx('pickup');
@@ -771,18 +778,29 @@ function addShake(power) {
   shakeUntilMs = max(shakeUntilMs, millis() + 110);
 }
 
-function spawnBeam(x, y, dir) {
+function spawnBeam(x, y, dir, opts) {
   if (!dir) return;
   let d = dir.copy();
   if (d.mag() === 0) d = createVector(0, -1);
   d.normalize();
+  let dur = (voidBeamSettings && typeof voidBeamSettings.durationMs === 'number' && voidBeamSettings.durationMs > 0)
+    ? voidBeamSettings.durationMs
+    : upgrades.beamDurationMs;
+  let len = (voidBeamSettings && typeof voidBeamSettings.length === 'number') ? voidBeamSettings.length : 520;
+  let thick = (voidBeamSettings && typeof voidBeamSettings.thickness === 'number') ? voidBeamSettings.thickness : 10;
+  let dmgMul = (voidBeamSettings && typeof voidBeamSettings.damageMul === 'number') ? voidBeamSettings.damageMul : 1.0;
   beams.push({
     x,
     y,
     dx: d.x,
     dy: d.y,
-    untilMs: millis() + upgrades.beamDurationMs,
+    untilMs: millis() + dur,
+    durMs: dur,
     lastTickFrame: -9999,
+    len,
+    thick,
+    dmgMul,
+    followPlayer: !!(opts && opts.followPlayer),
   });
 }
 
@@ -792,6 +810,10 @@ function updateBeams() {
 
   for (let b of beams) {
     if (!b) continue;
+    if (b.followPlayer && typeof player !== 'undefined' && player && player.pos) {
+      b.x = player.pos.x;
+      b.y = player.pos.y;
+    }
     if (b.untilMs <= now) {
       b.dead = true;
       continue;
@@ -802,14 +824,17 @@ function updateBeams() {
 
     let sx = b.x;
     let sy = b.y;
-    let ex = sx + b.dx * 520;
-    let ey = sy + b.dy * 520;
+    let blen = (typeof b.len === 'number') ? b.len : 520;
+    let bthick = (typeof b.thick === 'number') ? b.thick : 10;
+    let ex = sx + b.dx * blen;
+    let ey = sy + b.dy * blen;
     let vx = ex - sx;
     let vy = ey - sy;
     let vv = vx * vx + vy * vy;
     if (vv <= 0.0001) continue;
 
     let baseDmg = max(2, upgrades.damage * 0.22);
+    if (typeof b.dmgMul === 'number') baseDmg *= b.dmgMul;
     for (let e of enemies) {
       if (!e || e.dead) continue;
       let px = e.pos.x - sx;
@@ -821,7 +846,7 @@ function updateBeams() {
       let dx = e.pos.x - nx;
       let dy = e.pos.y - ny;
       let distSq = dx * dx + dy * dy;
-      let hitR = e.r + 10;
+      let hitR = e.r + bthick;
       if (distSq <= hitR * hitR) {
         e.hp -= baseDmg;
         e.hitUntilMs = max(e.hitUntilMs || 0, now + 70);
@@ -925,25 +950,32 @@ function drawParticles(alpha) {
 function drawBeams(alpha) {
   if (!beams || beams.length === 0) return;
   let now = millis();
+  let a0 = min(alpha ?? 255, 255);
   push();
   blendMode(ADD);
-  strokeCap(ROUND);
   for (let b of beams) {
     if (!b) continue;
-    let life = (b.untilMs - now) / max(1, upgrades.beamDurationMs);
-    let a = min(alpha ?? 255, 255) * max(0, min(1, life));
-    if (a <= 0) continue;
+    let dur = (typeof b.durMs === 'number' && b.durMs > 0) ? b.durMs : upgrades.beamDurationMs;
+    let t = max(0, min(1, (b.untilMs - now) / max(1, dur)));
+    let a = a0 * (0.35 + 0.65 * t);
 
     let sx = b.x;
     let sy = b.y;
-    let ex = sx + b.dx * 520;
-    let ey = sy + b.dy * 520;
+    let blen = (typeof b.len === 'number') ? b.len : 520;
+    let bthick = (typeof b.thick === 'number') ? b.thick : 10;
+    let ex = sx + b.dx * blen;
+    let ey = sy + b.dy * blen;
 
-    stroke(120, 220, 255, a * 0.55);
-    strokeWeight(10);
+    stroke(140, 200, 255, a * 0.25);
+    strokeWeight(10 + bthick * 0.7);
     line(sx, sy, ex, ey);
-    stroke(255, 255, 255, a * 0.65);
-    strokeWeight(3.5);
+
+    stroke(240, 250, 255, a * 0.55);
+    strokeWeight(4 + bthick * 0.35);
+    line(sx, sy, ex, ey);
+
+    stroke(255, 255, 255, a);
+    strokeWeight(max(2, bthick * 0.16));
     line(sx, sy, ex, ey);
   }
   blendMode(BLEND);
@@ -1195,6 +1227,13 @@ function preload() {
     backgroundImgs.push(loadImage(url, () => {}, () => {
       console.warn('Background failed to load:', url);
     }));
+  }
+
+  {
+    let url = encodeURI('assets/Void_MainShip/Player.png');
+    playerSprite = loadImage(url, () => {}, () => {
+      console.warn('Player sprite failed to load:', url);
+    });
   }
 }
 
@@ -2036,6 +2075,23 @@ function autoShoot() {
   if (dir.mag() === 0) return;
   dir.normalize();
 
+  let mode = (player && player.weaponMode) ? player.weaponMode : 'blaster';
+
+  if (mode === 'laser') {
+    let now = millis();
+    if (now - (autoShoot.lastLaserBeamMs || 0) < 90) return;
+    autoShoot.lastLaserBeamMs = now;
+
+    voidBeamSettings.length = 680;
+    voidBeamSettings.thickness = 14;
+    voidBeamSettings.damageMul = 0.55;
+    voidBeamSettings.durationMs = 140;
+    spawnBeam(player.pos.x, player.pos.y, dir, { followPlayer: true });
+    playSfx('beam');
+    addShake(0.25);
+    return;
+  }
+
   if (upgrades.ionBeamUnlocked && millis() - (autoShoot.lastBeamMs || 0) >= upgrades.beamCooldownMs) {
     spawnBeam(player.pos.x, player.pos.y, dir);
     autoShoot.lastBeamMs = millis();
@@ -2045,7 +2101,6 @@ function autoShoot() {
   }
 
   let tripleActive = upgrades.tripleShotUnlocked || (player && millis() < player.tempTripleUntilMs);
-  let mode = (player && player.weaponMode) ? player.weaponMode : 'blaster';
 
   let damageMul = 1;
   let pierceBonus = 0;
