@@ -1,0 +1,21 @@
+# Project Guidelines – p5.js Steering Behaviors
+
+## Global Behavior Rules
+- Use steering behavior models inspired by Craig Reynolds
+  (seek, flee, arrive, separation, alignment, cohesion, wander).
+- Behaviors must be based on forces, acceleration, velocity.
+
+## Architecture Constraints
+- DO NOT modify `Vehicule.js`.
+- `Vehicule.js` contains base properties and behaviors shared by all vehicles.
+- New behaviors must be implemented using subclasses only.
+
+## Inheritance Rules
+- Subclasses may override:
+  - applyBehaviors()
+  - show()
+- If update() is overridden, super.update() must be called.
+
+## p5.js Rules
+- Rendering logic must stay inside show().
+- No direct position teleportation.
