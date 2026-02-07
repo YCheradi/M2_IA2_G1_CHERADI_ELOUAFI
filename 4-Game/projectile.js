@@ -62,10 +62,9 @@ class Projectile {
     noFill();
     let a = min(alpha, 220);
 
-    let spritePack = (typeof voidShipSprites !== 'undefined') ? voidShipSprites : null;
     let spriteImg = null;
-    if (spritePack && spritePack.projectiles && this.spriteKey && spritePack.projectiles[this.spriteKey]) {
-      spriteImg = spritePack.projectiles[this.spriteKey];
+    if (this.mode === 'laser' && typeof laserSprite !== 'undefined' && laserSprite) {
+      spriteImg = laserSprite;
     }
 
     if (spriteImg) {
@@ -78,8 +77,12 @@ class Projectile {
       rotate(heading);
       imageMode(CENTER);
       tint(255, min(255, a));
-      let sc = (this.r * 5.6) / max(1, spriteImg.width);
-      image(spriteImg, 0, 0, spriteImg.width * sc, spriteImg.height * sc);
+
+      let sc = (this.r * 5.8) / max(1, spriteImg.width);
+      let w = spriteImg.width * sc;
+      let h = spriteImg.height * sc;
+      image(spriteImg, 0, 0, w, h);
+
       pop();
 
       pop();

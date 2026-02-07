@@ -52,6 +52,174 @@ let minibossSprites = [];
 let bossSprites = [];
 let snakeSprite;
 
+let shieldSprite;
+
+let laserSprite;
+
+let explosionImgs = [];
+let explosions = [];
+
+let screenEffects = [];
+
+class ScreenEffect {
+  constructor(kind, durationMs) {
+    this.kind = kind;
+    this.startMs = millis();
+    this.durationMs = durationMs || 900;
+    this.dead = false;
+  }
+  update() {
+    if (millis() - this.startMs >= this.durationMs) this.dead = true;
+  }
+  draw() {
+    if (this.kind !== 'freeze') return;
+    let t = max(0, min(1, (millis() - this.startMs) / max(1, this.durationMs)));
+    let ease = 1 - pow(1 - t, 2.2);
+    let a = 220 * (1 - t);
+    let cx = width * 0.5;
+    let cy = height * 0.5;
+    let maxR = max(width, height) * 0.95;
+
+    push();
+    blendMode(ADD);
+    noStroke();
+
+    fill(140, 210, 255, a * 0.10);
+    rect(0, 0, width, height);
+
+    for (let i = 0; i < 7; i++) {
+      let u = i / 6;
+      let rr = maxR * (0.18 + ease * (0.92 + 0.22 * u));
+      let aa = a * (0.25 * (1 - u)) * (1 - 0.35 * ease);
+      fill(160, 220, 255, aa * 0.22);
+      circle(cx, cy, rr * 2);
+    }
+
+    noFill();
+    stroke(210, 250, 255, a * 0.95);
+    strokeWeight(6);
+    circle(cx, cy, maxR * (0.22 + ease * 1.15) * 2);
+    stroke(255, 255, 255, a * 0.55);
+    strokeWeight(2);
+    circle(cx, cy, maxR * (0.18 + ease * 1.06) * 2);
+
+    let rays = 46;
+    stroke(170, 230, 255, a * 0.35);
+    strokeWeight(2);
+    for (let i = 0; i < rays; i++) {
+      let ang = (i / rays) * TWO_PI;
+      let wob = 0.35 * sin((this.startMs * 0.001) + i);
+      let r0 = maxR * (0.08 + ease * 0.15);
+      let r1 = maxR * (0.22 + ease * 1.08) * (0.75 + 0.25 * sin(i * 2.1 + this.startMs * 0.002));
+      let x0 = cx + cos(ang + wob) * r0;
+      let y0 = cy + sin(ang + wob) * r0;
+      let x1 = cx + cos(ang + wob) * r1;
+      let y1 = cy + sin(ang + wob) * r1;
+      line(x0, y0, x1, y1);
+    }
+
+    blendMode(BLEND);
+    pop();
+  }
+}
+
+function spawnFreezeScreenExplosion() {
+  screenEffects.push(new ScreenEffect('freeze', 900));
+}
+
+class Explosion {
+  constructor(x, y, img, size, durationMs) {
+    this.pos = createVector(x, y);
+    this.img = img || null;
+    this.size = size || 80;
+    this.startMs = millis();
+    this.durationMs = durationMs || 520;
+    this.dead = false;
+  }
+  update() {
+    if (millis() - this.startMs >= this.durationMs) this.dead = true;
+  }
+  draw(alpha = 255) {
+    if (!this.img) return;
+    let t = max(0, min(1, (millis() - this.startMs) / max(1, this.durationMs)));
+    push();
+    imageMode(CENTER);
+    tint(255, alpha * (1 - 0.35 * t));
+    image(this.img, this.pos.x, this.pos.y, this.size, this.size);
+    pop();
+  }
+}
+
+function buildShieldSprite(size) {
+  let sz = max(64, size | 0);
+  let g = createGraphics(sz, sz);
+  g.pixelDensity(1);
+  g.clear();
+
+  let cx = sz * 0.5;
+  let cy = sz * 0.5;
+  let r = sz * 0.36;
+
+  g.noStroke();
+  for (let i = 0; i < 120; i++) {
+    let t = i / 119;
+    let rr = lerp(18, 3, t);
+    let aa = lerp(75, 0, t);
+    g.fill(10, 40, 80, aa);
+    g.circle(cx, cy, (r * 2.05) - rr);
+  }
+
+  g.blendMode(ADD);
+  for (let i = 0; i < 110; i++) {
+    let t = i / 109;
+    let rad = r * (1.05 + t * 0.55);
+    let a = 28 * (1 - t) * (1 - t);
+    g.noFill();
+    g.stroke(120, 220, 255, a);
+    g.strokeWeight(3.0 + 6.0 * (1 - t));
+    g.circle(cx, cy, rad * 2);
+  }
+
+  g.noFill();
+  g.stroke(210, 250, 255, 190);
+  g.strokeWeight(sz * 0.014);
+  g.circle(cx, cy, r * 2.18);
+  g.stroke(255, 255, 255, 120);
+  g.strokeWeight(sz * 0.006);
+  g.circle(cx, cy, r * 2.20);
+
+  g.noStroke();
+  for (let i = 0; i < 600; i++) {
+    let ang = random(TWO_PI);
+    let rr = r * random(0.9, 1.45);
+    let x = cx + cos(ang) * rr + randomGaussian() * 1.8;
+    let y = cy + sin(ang) * rr + randomGaussian() * 1.8;
+    let a = random(12, 75);
+    let s = random(1.0, 3.2);
+    g.fill(170, 240, 255, a);
+    g.circle(x, y, s);
+  }
+
+  g.blendMode(BLEND);
+  return g;
+}
+
+function spawnExplosion(x, y, sizeMul = 1, durationMs = 520) {
+  if (!explosionImgs || explosionImgs.length === 0) return;
+  let img = random(explosionImgs);
+  if (!img) return;
+  let baseSize = 90;
+  explosions.push(new Explosion(x, y, img, baseSize * sizeMul, durationMs));
+}
+
+function killEnemy(e) {
+  if (!e || e.dead) return;
+  e.dead = true;
+  let mul = e.isBoss ? 2.2 : (e.isElite ? 1.55 : 1.0);
+  spawnExplosion(e.pos.x, e.pos.y, mul, e.isBoss ? 900 : (e.isElite ? 700 : 520));
+  dropGemsForEnemy(e);
+}
+
 function setPlayerVehicle(idx) {
   let i = max(0, min(3, idx | 0));
   selectedPlayerVehicleIdx = i;
@@ -93,6 +261,15 @@ let drones = [];
 
 let loadingBuilt = false;
 let loadingDoneAtMs = 0;
+let loadingStableFrames = 0;
+
+let warmupUntilMs = 0;
+
+let shimmerEnableAtMs = 0;
+
+function inWarmup() {
+  return millis() < warmupUntilMs;
+}
 
 let slowUntilMs = 0;
 
@@ -198,6 +375,9 @@ let upgrades = {
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
+
+  shieldSprite = buildShieldSprite(512);
+
   hudDiv = createDiv('');
   hudDiv.id('hud');
 
@@ -248,6 +428,8 @@ function drawBackgroundImage(img, a) {
 function drawDynamicBackground() {
   if (!backgroundImgs || backgroundImgs.length === 0) return false;
   let now = millis();
+
+  let warmup = inWarmup();
 
   if (now - bgLastChangeMs >= bgChangeEveryMs) {
     bgLastChangeMs = now;
@@ -546,6 +728,8 @@ function applyAid(type) {
   } else if (type === 'freeze') {
     freezeUntilMs = max(freezeUntilMs, now + 5200);
     playSfx('pickup');
+    spawnFreezeScreenExplosion();
+    addShake(3.2);
   } else if (type === 'chain_lightning') {
     if (typeof chainLightningBurst === 'function') {
       chainLightningBurst();
@@ -589,8 +773,7 @@ function applyAid(type) {
         e.hp -= dmg;
         e.hitUntilMs = max(e.hitUntilMs || 0, now + 120);
         if (e.hp <= 0) {
-          e.dead = true;
-          dropGemsForEnemy(e);
+          killEnemy(e);
         }
       }
     }
@@ -816,6 +999,7 @@ function spawnBeam(x, y, dir, opts) {
     thick,
     dmgMul,
     followPlayer: !!(opts && opts.followPlayer),
+    kind: (opts && opts.kind) ? opts.kind : 'ion',
   });
 }
 
@@ -866,8 +1050,7 @@ function updateBeams() {
         e.hp -= baseDmg;
         e.hitUntilMs = max(e.hitUntilMs || 0, now + 70);
         if (e.hp <= 0) {
-          e.dead = true;
-          dropGemsForEnemy(e);
+          killEnemy(e);
         }
       }
     }
@@ -992,6 +1175,29 @@ function drawBeams(alpha) {
     stroke(255, 255, 255, a);
     strokeWeight(max(2, bthick * 0.16));
     line(sx, sy, ex, ey);
+
+    if ((b.kind === 'laser') && typeof laserSprite !== 'undefined' && laserSprite) {
+      let dir = createVector(b.dx, b.dy);
+      if (dir.mag() === 0) dir = createVector(0, -1);
+      let heading = dir.heading() + HALF_PI;
+      let sc = (bthick * 3.0) / max(1, laserSprite.height);
+      let iw = laserSprite.width * sc;
+      let ih = laserSprite.height * sc;
+      let step = max(8, iw * 0.75);
+      let count = floor(blen / step);
+      count = max(1, min(30, count));
+
+      push();
+      translate(sx, sy);
+      rotate(heading);
+      imageMode(CENTER);
+      tint(255, min(255, a * 0.95));
+      for (let i = 0; i < count; i++) {
+        let px = (i + 0.5) * (blen / count);
+        image(laserSprite, 0, -px, iw, ih);
+      }
+      pop();
+    }
   }
   blendMode(BLEND);
   pop();
@@ -1292,6 +1498,29 @@ function preload() {
     });
   }
 
+  shieldSprite = null;
+
+  laserSprite = null;
+  {
+    let url = encodeURI('assets/items/laser.gif');
+    laserSprite = loadImage(url, () => {}, () => {
+      let url2 = encodeURI('assets/items/laser.png');
+      laserSprite = loadImage(url2, () => {}, () => {
+        console.warn('Laser sprite failed to load:', url);
+        console.warn('Laser sprite failed to load:', url2);
+        laserSprite = null;
+      });
+    });
+  }
+
+  explosionImgs = [];
+  for (let i = 1; i <= 8; i++) {
+    let url = encodeURI('assets/explosion/explosion_' + i + '.gif');
+    explosionImgs.push(loadImage(url, () => {}, () => {
+      console.warn('Explosion failed to load:', url);
+    }));
+  }
+
   setPlayerVehicle(selectedPlayerVehicleIdx);
 }
 
@@ -1308,6 +1537,7 @@ function resetGame() {
   aids = [];
   snakes = [];
   drones = [];
+  explosions = [];
 
   obstacles = [];
   visibleObstacles = [];
@@ -1364,6 +1594,8 @@ function resetGame() {
   path = null;
 
   startMs = millis();
+  warmupUntilMs = startMs + 2200;
+  shimmerEnableAtMs = startMs + 4200;
   lastSpawnMs = millis();
   lastShotMs = millis();
   spawnRate = 900;
@@ -1401,6 +1633,8 @@ function syncOrbitals() {
 
 function showMenu() {
   state = 'menu';
+  warmupUntilMs = max(warmupUntilMs, millis() + 2200);
+  shimmerEnableAtMs = max(shimmerEnableAtMs, millis() + 4200);
   overlayDiv.show();
   choicesDiv.hide();
   panelDiv.html('');
@@ -1566,8 +1800,8 @@ function drawBloomPass() {
 }
 
 function draw() {
-  let hasBg = drawDynamicBackground();
-  if (!hasBg) {
+  let warmupTop = inWarmup();
+  {
     let ctx = drawingContext;
     let g = ctx.createRadialGradient(width * 0.5, height * 0.35, 10, width * 0.5, height * 0.5, max(width, height));
     g.addColorStop(0, 'rgba(25, 35, 70, 1)');
@@ -1577,15 +1811,27 @@ function draw() {
     ctx.fillRect(0, 0, width, height);
   }
 
+  if (!warmupTop) {
+    drawDynamicBackground();
+  }
+
   if (state === 'loading') {
     if (!loadingBuilt) {
       rebuildBackdropGfx();
       loadingBuilt = true;
-      loadingDoneAtMs = millis() + 1000;
+      loadingDoneAtMs = millis() + 900;
+      loadingStableFrames = 0;
     }
 
-    drawWorld(true);
-    drawHud();
+    push();
+    noStroke();
+    fill(0, 0, 0, 180);
+    rect(0, 0, width, height);
+    fill(255, 255, 255, 235);
+    textAlign(CENTER, CENTER);
+    textSize(26);
+    text('Chargement...', width / 2, height / 2);
+    pop();
 
     if (vignetteGfx) {
       push();
@@ -1596,9 +1842,8 @@ function draw() {
       pop();
     }
 
-    if (millis() >= loadingDoneAtMs) {
-      showMenu();
-    }
+    if (millis() >= loadingDoneAtMs) loadingStableFrames += 1;
+    if (loadingStableFrames >= 6) showMenu();
     return;
   }
 
@@ -1649,6 +1894,8 @@ function draw() {
 
   let now = millis();
 
+  let warmup = inWarmup();
+
   let freezeFactor = now < freezeUntilMs ? 0.18 : 1;
 
   perfState.avgFps = lerp(perfState.avgFps, frameRate(), 0.05);
@@ -1693,11 +1940,11 @@ function draw() {
     return;
   }
 
-  if (settings.hyperspace || true) {
+  if (!warmup && (settings.hyperspace || true)) {
     drawStars();
   }
 
-  if (settings.hyperspace) {
+  if (!warmup && settings.hyperspace) {
     if (slowFactor < 1 || (player && player.dashingUntilMs > now)) {
       drawHyperspace(slowFactor);
     }
@@ -1768,8 +2015,7 @@ function draw() {
       if (d < upgrades.auraRadius + e.r) {
         e.hp -= upgrades.auraDamage;
         if (e.hp <= 0) {
-          e.dead = true;
-          dropGemsForEnemy(e);
+          killEnemy(e);
         }
       }
     }
@@ -1803,6 +2049,8 @@ function draw() {
   for (let ep of enemyProjectiles) ep.update(slowFactor);
   for (let i = 0; i < drones.length; i++) drones[i].update(i, drones.length);
   for (let g of gems) g.update();
+  for (let ex of explosions) ex.update();
+  for (let fx of screenEffects) fx.update();
   for (let w of whipStrikes) w.update();
   for (let b of boomerangs) b.update();
   for (let pk of pickups) pk.update();
@@ -1818,14 +2066,21 @@ function draw() {
   projectiles = projectiles.filter(p => !p.dead);
   enemyProjectiles = enemyProjectiles.filter(p => !p.dead);
   gems = gems.filter(g => !g.dead);
+  explosions = explosions.filter(ex => ex && !ex.dead);
+  screenEffects = screenEffects.filter(fx => fx && !fx.dead);
   whipStrikes = whipStrikes.filter(w => !w.dead);
   boomerangs = boomerangs.filter(b => !b.dead);
   pickups = pickups.filter(p => !p.dead);
   aids = aids.filter(a => !a.dead);
 
   drawWorld(false);
-  drawBloomPass();
-  if (frameCount % perfTuning.minimapEveryNFrames === 0) drawMiniMap();
+  if (!warmup) {
+    drawBloomPass();
+    if (frameCount % perfTuning.minimapEveryNFrames === 0) drawMiniMap();
+  }
+
+  for (let fx of screenEffects) fx.draw();
+
   drawHud();
 
   if (vignetteGfx) {
@@ -1887,9 +2142,10 @@ function drawWorld(ghost) {
   drawBeams(alpha);
   for (let s of snakes) (s.show ? s.show(alpha) : s.draw(alpha));
   for (let e of enemies) (e.show ? e.show(alpha) : e.draw(alpha));
+  for (let ex of explosions) (ex.show ? ex.show(alpha) : ex.draw(alpha));
   (player.show ? player.show(alpha) : player.draw(alpha));
 
-  if (!ghost && settings.heatShimmer && frameCount % perfTuning.shimmerEveryNFrames === 0) {
+  if (!ghost && settings.heatShimmer && millis() >= shimmerEnableAtMs && frameCount % perfTuning.shimmerEveryNFrames === 0) {
     let now = millis();
     if (player && (keys.w || keys.a || keys.s || keys.d || (player && player.dashingUntilMs > now))) {
       let dir = player.lastMoveDir.copy();
@@ -2149,7 +2405,7 @@ function autoShoot() {
     voidBeamSettings.thickness = 14;
     voidBeamSettings.damageMul = 0.55;
     voidBeamSettings.durationMs = 140;
-    spawnBeam(player.pos.x, player.pos.y, dir, { followPlayer: true });
+    spawnBeam(player.pos.x, player.pos.y, dir, { followPlayer: true, kind: 'laser' });
     playSfx('beam');
     addShake(0.25);
     return;
@@ -2281,8 +2537,7 @@ function handleCollisions() {
             spawnImpact(e.pos.x, e.pos.y, [255, 245, 190]);
             if (random() < 0.25) addShake(0.7);
             if (e.hp <= 0) {
-              e.dead = true;
-              dropGemsForEnemy(e);
+              killEnemy(e);
             }
           }
         }
@@ -2320,8 +2575,7 @@ function handleCollisions() {
             }
 
             if (e.hp <= 0) {
-              e.dead = true;
-              dropGemsForEnemy(e);
+              killEnemy(e);
             }
 
             if (p.pierceLeft < 0) {
@@ -2463,15 +2717,14 @@ function applyPickup(type) {
     playSfx('explosion');
     addShake(4.2);
     for (let e of enemies) {
-      if (e.dead) continue;
+      if (!e || e.dead) continue;
       let d = p5.Vector.dist(e.pos, player.pos);
-      if (d < 260) {
-        e.hp -= 140;
+      if (d < upgrades.whipRange + e.r) {
+        e.hp -= upgrades.whipDamage;
         e.hitUntilMs = max(e.hitUntilMs || 0, millis() + 110);
         spawnImpact(e.pos.x, e.pos.y, [255, 160, 80]);
         if (e.hp <= 0) {
-          e.dead = true;
-          dropGemsForEnemy(e);
+          killEnemy(e);
         }
       }
     }

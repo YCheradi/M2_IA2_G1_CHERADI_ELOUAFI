@@ -430,14 +430,27 @@ class Player {
       if (this.shieldHits > 0 || invul) {
         push();
         blendMode(ADD);
-        noFill();
-        let a = invul ? min(200, alpha) : min(150, alpha);
-        stroke(140, 220, 255, a);
-        strokeWeight(max(2, this.r * 0.22));
-        circle(0, 0, w * 1.15);
-        stroke(220, 250, 255, a * 0.45);
-        strokeWeight(max(1, this.r * 0.12));
-        circle(0, 0, w * 1.32);
+        let a = invul ? min(220, alpha) : min(170, alpha);
+
+        if (typeof shieldSprite !== 'undefined' && shieldSprite) {
+          imageMode(CENTER);
+          let pulse = 1.0 + 0.03 * sin(this.phase * 1.35);
+          let ring = 1.35;
+          tint(255, a);
+          image(shieldSprite, 0, 0, w * ring * pulse, w * ring * pulse);
+          tint(255, a * 0.55);
+          image(shieldSprite, 0, 0, w * ring * 1.08 * pulse, w * ring * 1.08 * pulse);
+          noTint();
+        } else {
+          noFill();
+          stroke(140, 220, 255, a);
+          strokeWeight(max(2, this.r * 0.22));
+          circle(0, 0, w * 1.15);
+          stroke(220, 250, 255, a * 0.45);
+          strokeWeight(max(1, this.r * 0.12));
+          circle(0, 0, w * 1.32);
+        }
+
         blendMode(BLEND);
         pop();
       }
