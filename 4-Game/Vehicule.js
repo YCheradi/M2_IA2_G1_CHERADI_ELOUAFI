@@ -784,6 +784,56 @@ class Enemy extends Vehicule {
     let now = millis();
     this.phase += 0.06;
 
+    let spriteImg = null;
+    if (typeof bossSprites !== 'undefined' && this.isBoss && bossSprites && bossSprites.length) {
+      spriteImg = bossSprites[this.id % bossSprites.length] || bossSprites[0] || null;
+    } else if (typeof minibossSprites !== 'undefined' && this.isElite && minibossSprites && minibossSprites.length) {
+      spriteImg = minibossSprites[this.id % minibossSprites.length] || minibossSprites[0] || null;
+    } else if (typeof menaceSprites !== 'undefined' && menaceSprites && menaceSprites.length) {
+      spriteImg = menaceSprites[this.id % menaceSprites.length] || menaceSprites[0] || null;
+    }
+
+    if (spriteImg) {
+      let v = this.vel.copy();
+      let heading = (v.mag() > 0.15 ? v.heading() : p5.Vector.sub(player.pos, this.pos).heading()) + HALF_PI;
+      let wobble = 0.06 * sin(this.phase * 1.25);
+
+      push();
+      translate(this.pos.x, this.pos.y);
+      rotate(heading + wobble);
+      imageMode(CENTER);
+      tint(255, alpha);
+
+      let s = (this.r * 4.2) / max(1, spriteImg.width);
+      let w = spriteImg.width * s;
+      let h = spriteImg.height * s;
+      image(spriteImg, 0, 0, w, h);
+
+      if (this.isElite) {
+        noFill();
+        stroke(255, 255, 255, min(alpha, 140));
+        strokeWeight(2);
+        circle(0, 0, this.r * 2.25);
+      }
+
+      pop();
+
+      let maxHp = max(this.maxHp || 0, this.hp);
+      if (this.isBoss) maxHp = max(maxHp, 800);
+      let hpPct = max(0, min(1, this.hp / maxHp));
+      if (hpPct < 1 || this.isBoss || this.isElite) {
+        stroke(0, 0, 0, min(alpha, 220));
+        strokeWeight(2);
+        fill(255, 60, 60, min(alpha, 220));
+        rectMode(CENTER);
+        rect(this.pos.x, this.pos.y - this.r - 16, 56 * hpPct, 7, 4);
+        rectMode(CORNER);
+      }
+
+      pop();
+      return;
+    }
+
     let col;
     if (this.isBoss) col = [255, 160, 80];
     else if (this.isElite) col = [200, 230, 255];
@@ -918,6 +968,23 @@ class SnakeSegment extends Vehicule {
   draw(alpha, isHead) {
     push();
     let a = min(alpha, 255);
+
+    if (typeof snakeSprite !== 'undefined' && snakeSprite) {
+      let v = this.vel.copy();
+      let heading = (v.mag() > 0.12 ? v.heading() : 0) + HALF_PI;
+
+      push();
+      translate(this.pos.x, this.pos.y);
+      rotate(heading);
+      imageMode(CENTER);
+      tint(255, a);
+      let s = (this.r * 4.8) / max(1, snakeSprite.width);
+      image(snakeSprite, 0, 0, snakeSprite.width * s, snakeSprite.height * s);
+      pop();
+
+      pop();
+      return;
+    }
 
     noStroke();
     fill(isHead ? 255 : 220, isHead ? 180 : 140, isHead ? 80 : 70, min(a, 55));

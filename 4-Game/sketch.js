@@ -44,6 +44,21 @@ let voidBeamSettings = {
 };
 
 let playerSprite;
+let playerVehicleSprites = [];
+let selectedPlayerVehicleIdx = 0;
+
+let menaceSprites = [];
+let minibossSprites = [];
+let bossSprites = [];
+let snakeSprite;
+
+function setPlayerVehicle(idx) {
+  let i = max(0, min(3, idx | 0));
+  selectedPlayerVehicleIdx = i;
+  if (playerVehicleSprites && playerVehicleSprites[i]) {
+    playerSprite = playerVehicleSprites[i];
+  }
+}
 
 let audioCtx = null;
 let masterGain = null;
@@ -1235,6 +1250,49 @@ function preload() {
       console.warn('Player sprite failed to load:', url);
     });
   }
+
+  playerVehicleSprites = [];
+  {
+    let baseUrl = encodeURI('assets/Void_MainShip/Player.png');
+    playerVehicleSprites[0] = loadImage(baseUrl, () => {}, () => {
+      console.warn('Player vehicle failed to load:', baseUrl);
+    });
+  }
+  for (let i = 1; i <= 3; i++) {
+    let url = encodeURI('assets/Void_MainShip/Player_' + i + '.png');
+    playerVehicleSprites[i] = loadImage(url, () => {}, () => {
+      console.warn('Player vehicle failed to load:', url);
+    });
+  }
+
+  menaceSprites = [];
+  minibossSprites = [];
+  bossSprites = [];
+  for (let i = 1; i <= 3; i++) {
+    let u1 = encodeURI('assets/Void_MainShip/menace_' + i + '.png');
+    menaceSprites[i - 1] = loadImage(u1, () => {}, () => {
+      console.warn('Menace sprite failed to load:', u1);
+    });
+
+    let u2 = encodeURI('assets/Void_MainShip/miniboss_' + i + '.png');
+    minibossSprites[i - 1] = loadImage(u2, () => {}, () => {
+      console.warn('Miniboss sprite failed to load:', u2);
+    });
+
+    let u3 = encodeURI('assets/Void_MainShip/Boss_' + i + '.png');
+    bossSprites[i - 1] = loadImage(u3, () => {}, () => {
+      console.warn('Boss sprite failed to load:', u3);
+    });
+  }
+
+  {
+    let url = encodeURI('assets/Void_MainShip/Snake.png');
+    snakeSprite = loadImage(url, () => {}, () => {
+      console.warn('Snake sprite failed to load:', url);
+    });
+  }
+
+  setPlayerVehicle(selectedPlayerVehicleIdx);
 }
 
 function resetGame() {
@@ -1300,6 +1358,7 @@ function resetGame() {
   };
 
   player = new Player(width / 2, height / 2);
+  setPlayerVehicle(selectedPlayerVehicleIdx);
   cameraPos = player.pos.copy();
 
   path = null;
@@ -1351,12 +1410,14 @@ function showMenu() {
   let p2 = createP('Touches: <span class="kbd">Entrée</span> commencer | <span class="kbd">P</span> pause');
   let p3 = createP('En jeu: level-up => clique une carte ou appuie <span class="kbd">1</span>/<span class="kbd">2</span>/<span class="kbd">3</span>.');
   let p4 = createP('Difficulté: <span class="kbd">C</span> casual (' + (settings.casual ? 'ON' : 'OFF') + ')');
+  let p5 = createP('Véhicule: <span class="kbd">1</span>/<span class="kbd">2</span>/<span class="kbd">3</span> (actuel: ' + (selectedPlayerVehicleIdx === 0 ? 'Default' : ('Player ' + selectedPlayerVehicleIdx)) + ')');
 
   panelDiv.child(h);
   panelDiv.child(p);
   panelDiv.child(p2);
   panelDiv.child(p3);
   panelDiv.child(p4);
+  panelDiv.child(p5);
 }
 
 function showGameOver() {
@@ -1367,12 +1428,14 @@ function showGameOver() {
 
   let survived = ((millis() - startMs) / 1000).toFixed(1);
   let h = createElement('h1', 'Game Over');
-  let p = createP('Temps: ' + survived + 's | Niveau: ' + player.level + ' | Score XP: ' + player.totalXp);
+  let p = createP('Tu as survécu ' + survived + ' secondes.');
   let p2 = createP('Appuie <span class="kbd">R</span> pour recommencer.');
+  let p3 = createP('Véhicule: <span class="kbd">1</span>/<span class="kbd">2</span>/<span class="kbd">3</span> (actuel: ' + (selectedPlayerVehicleIdx === 0 ? 'Default' : ('Player ' + selectedPlayerVehicleIdx)) + ')');
 
   panelDiv.child(h);
   panelDiv.child(p);
   panelDiv.child(p2);
+  panelDiv.child(p3);
 }
 
 function showLevelUp(choices) {
@@ -2608,6 +2671,24 @@ function buildUpgradeChoices() {
       apply: () => { upgrades.tripleShotUnlocked = true; },
     },
     {
+      id: 'veh_1',
+      title: 'Véhicule: Player 1',
+      desc: 'Change ton vaisseau (skin).',
+      apply: () => { setPlayerVehicle(1); },
+    },
+    {
+      id: 'veh_2',
+      title: 'Véhicule: Player 2',
+      desc: 'Change ton vaisseau (skin).',
+      apply: () => { setPlayerVehicle(2); },
+    },
+    {
+      id: 'veh_3',
+      title: 'Véhicule: Player 3',
+      desc: 'Change ton vaisseau (skin).',
+      apply: () => { setPlayerVehicle(3); },
+    },
+    {
       id: 'ion_unlock',
       title: 'Weapon: Ion Beam',
       desc: 'Déclenche un rayon qui perce.',
@@ -2639,6 +2720,12 @@ function buildUpgradeChoices() {
 function keyPressed() {
   ensureAudio();
   resumeAudioIfNeeded();
+
+  if (state === 'menu' || state === 'gameover') {
+    if (keyCode === 49) { setPlayerVehicle(1); if (state === 'menu') showMenu(); else showGameOver(); }
+    if (keyCode === 50) { setPlayerVehicle(2); if (state === 'menu') showMenu(); else showGameOver(); }
+    if (keyCode === 51) { setPlayerVehicle(3); if (state === 'menu') showMenu(); else showGameOver(); }
+  }
 
   if (key === 'z' || key === 'Z') keys.w = true;
   if (key === 'q' || key === 'Q') keys.a = true;
