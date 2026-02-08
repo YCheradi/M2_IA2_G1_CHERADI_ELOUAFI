@@ -3,11 +3,11 @@
 ## Auteurs
 
 - **CHERADI Yassine**
-- **ELOUAFI Yasmine**
+- **EL OUAFI Yasmine**
 
 ## lien du projet
 
-https://yassinecheradi.github.io/M2_IA2_CASA_G1_2025_2026
+https://github.com/YCheradi/M2_IA2_G1_CHERADI_ELOUAFI
 
 ## lien Youtube
 
