@@ -1,5 +1,7 @@
 class Projectile {
   constructor(x, y, dir, mode = 'blaster', damageMul = 1, pierceBonus = 0, spriteKey = null, speedMul = 1, sizeMul = 1) {
+    // Projectile générique: utilisé pour les tirs du joueur (blaster/laser/ion) et certains alliés.
+    // Note: le "laser" principal du joueur est un BEAM (voir sketch.js / drawBeams), ici c'est le mode projectile.
     this.pos = createVector(x, y);
     this.mode = mode;
     this.spriteKey = spriteKey;
@@ -42,7 +44,7 @@ class Projectile {
     let maxTrail = this.mode === 'laser' ? 12 : 10;
     if (this.trail.length > maxTrail) this.trail.pop();
 
-    // steering: maintenir une trajectoire stable avec des forces
+    // Steering: maintenir une trajectoire stable (évite des micro-variations dues aux collisions/forces)
     let desired = this.desiredVel.copy();
     desired.setMag(this.maxSpeed);
     let steer = p5.Vector.sub(desired, this.vel);
@@ -62,12 +64,15 @@ class Projectile {
     noFill();
     let a = min(alpha, 220);
 
+    // Rendu sprite (si disponible) pour certains modes.
+    // Ici, on utilise laserSprite si le mode est 'laser'. Sinon fallback vectoriel.
     let spriteImg = null;
     if (this.mode === 'laser' && typeof laserSprite !== 'undefined' && laserSprite) {
       spriteImg = laserSprite;
     }
 
     if (spriteImg) {
+      // Sprite orienté selon la vitesse
       let dir = this.vel.copy();
       if (dir.mag() === 0) dir = createVector(0, -1);
       let heading = dir.heading() + HALF_PI;
@@ -89,6 +94,7 @@ class Projectile {
       return;
     }
 
+    // Fallback: rendu vectoriel (ligne + trail)
     let coreCol = [200, 255, 220];
     let col = [80, 255, 140];
     if (this.mode === 'laser') {

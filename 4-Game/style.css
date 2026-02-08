@@ -9,6 +9,7 @@ canvas {
   display: block;
 }
 
+/* HUD in-game (top-left) */
 #hud {
   position: fixed;
   top: 10px;
@@ -46,6 +47,7 @@ canvas {
   background: linear-gradient(90deg, rgba(255, 208, 90, 0.95), rgba(255, 245, 190, 0.90));
 }
 
+/* Overlay UI: menu / level-up / shop / gameover */
 #overlay {
   position: fixed;
   inset: 0;
@@ -79,6 +81,76 @@ canvas {
   opacity: 0.9;
 }
 
+/* UI layout helpers (header/boxes/buttons) */
+ .ui-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+ }
+
+ .ui-title {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: rgba(255, 230, 160, 0.96);
+  text-shadow: 0 0 22px rgba(255, 208, 90, 0.18);
+ }
+
+ .ui-subtitle {
+  margin-top: 8px;
+  font-size: 13px;
+  opacity: 0.86;
+ }
+
+ .ui-meta {
+  font-size: 12px;
+  opacity: 0.78;
+  text-align: right;
+  white-space: nowrap;
+ }
+
+ .ui-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+ }
+
+ .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 208, 90, 0.22);
+  background: linear-gradient(180deg, rgba(255, 208, 90, 0.12), rgba(255,255,255,0.03));
+  color: rgba(245, 250, 255, 0.95);
+  font-weight: 650;
+  letter-spacing: 0.2px;
+ }
+
+ .btn strong {
+  color: rgba(255, 230, 160, 0.98);
+ }
+
+ .ui-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 12px;
+ }
+
+ .ui-box {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.12));
+ }
+
+/* Cards grid (choices) */
 #choices {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -93,6 +165,58 @@ canvas {
   background: linear-gradient(180deg, rgba(255, 208, 90, 0.10), rgba(255,255,255,0.03));
   transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
 }
+
+ .choice .choice-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+ }
+
+ .choice .tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.22);
+  opacity: 0.92;
+ }
+
+ .choice.choice--weapon { border-color: rgba(120, 210, 255, 0.28); }
+ .choice.choice--weapon:hover { border-color: rgba(120, 210, 255, 0.55); }
+ .choice.choice--spell { border-color: rgba(160, 235, 255, 0.26); }
+ .choice.choice--spell:hover { border-color: rgba(160, 235, 255, 0.50); }
+ .choice.choice--ship { border-color: rgba(120, 255, 180, 0.24); }
+ .choice.choice--ship:hover { border-color: rgba(120, 255, 180, 0.50); }
+ .choice.choice--explosive { border-color: rgba(255, 160, 90, 0.26); }
+ .choice.choice--explosive:hover { border-color: rgba(255, 160, 90, 0.54); }
+ .choice.choice--ally { border-color: rgba(190, 255, 190, 0.22); }
+ .choice.choice--ally:hover { border-color: rgba(190, 255, 190, 0.46); }
+ .choice.choice--upgrade { border-color: rgba(255, 208, 90, 0.16); }
+ .choice.choice--upgrade:hover { border-color: rgba(255, 208, 90, 0.35); }
+
+ .choice.choice--weapon .tag { border-color: rgba(120, 210, 255, 0.40); color: rgba(200, 245, 255, 0.95); }
+ .choice.choice--spell .tag { border-color: rgba(160, 235, 255, 0.38); color: rgba(220, 250, 255, 0.95); }
+ .choice.choice--ship .tag { border-color: rgba(120, 255, 180, 0.36); color: rgba(220, 255, 240, 0.95); }
+ .choice.choice--explosive .tag { border-color: rgba(255, 160, 90, 0.38); color: rgba(255, 235, 190, 0.95); }
+ .choice.choice--ally .tag { border-color: rgba(190, 255, 190, 0.30); color: rgba(240, 255, 240, 0.95); }
+
+ /* Responsive: en petit écran, on passe en 1 colonne */
+ @media (max-width: 820px) {
+  .ui-grid { grid-template-columns: 1fr; }
+ }
+
+ @media (max-width: 760px) {
+  #choices { grid-template-columns: 1fr; }
+  #panel { padding: 14px; }
+  .ui-title { font-size: 24px; }
+ }
 
 .choice:hover {
   background: linear-gradient(180deg, rgba(255, 208, 90, 0.14), rgba(255,255,255,0.05));

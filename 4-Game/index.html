@@ -3,11 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VS-Like</title>
+    <title>Star Wars: BattleSpace</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" type="text/css" href="style.css">
+
+    <!-- p5.js + dépendances -->
     <script src="../3-Arrival/libraries/p5.min.js"></script>
     <script src="../3-Arrival/libraries/p5.sound.min.js"></script>
+
+    <!-- Scripts du jeu (ordre important) -->
     <script src="path.js"></script>
     <script src="Vehicule.js"></script>
     <script src="obstacle.js"></script>
@@ -21,5 +25,25 @@
     <script src="sketch.js"></script>
   </head>
   <body>
+    <!-- Musique de fond: loop. Démarre sur 1ère interaction (autoplay policy navigateur). -->
+    <audio id="bgm" src="assets/sound/soundtrack.mp3" loop preload="auto"></audio>
+    <script>
+      (function () {
+        var started = false;
+        function startMusic() {
+          if (started) return;
+          started = true;
+          var a = document.getElementById('bgm');
+          if (!a) return;
+          a.volume = 0.35;
+          var p = a.play();
+          if (p && typeof p.catch === 'function') p.catch(function () {});
+          window.removeEventListener('pointerdown', startMusic);
+          window.removeEventListener('keydown', startMusic);
+        }
+        window.addEventListener('pointerdown', startMusic, { once: true });
+        window.addEventListener('keydown', startMusic, { once: true });
+      })();
+    </script>
   </body>
 </html>

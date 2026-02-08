@@ -2,6 +2,7 @@ class Vehicule {
   static debug = false;
 
   constructor(x, y) {
+    // Base "steering vehicle": position/vitesse/accélération + helpers (seek/arrive/avoid...)
     this.pos = createVector(x, y);
     this.vel = createVector(0, 0);
     this.acc = createVector(0, 0);
@@ -245,6 +246,7 @@ class Vehicule {
 }
 
 class Player {
+  // Player: gère stats, XP/level-up, dash/invuln, weaponMode, et rendu (sprite + bouclier)
   constructor(x, y, machine = null) {
     this.pos = createVector(x, y);
     this.vel = createVector(0, 0);
@@ -381,6 +383,7 @@ class Player {
   }
 
   takeDamage(amount) {
+    // Priorité au bouclier: consume 1 hit puis invuln courte
     if (this.shieldHits > 0) {
       this.shieldHits -= 1;
       this.invulnerableUntilMs = max(this.invulnerableUntilMs, millis() + 220);
@@ -390,6 +393,7 @@ class Player {
   }
 
   gainXp(v) {
+    // XP -> level-up: ouvre l'overlay de choix d'améliorations
     this.totalXp += v;
     this.xp += v;
     if (this.xp >= this.xpToNext) {
@@ -408,6 +412,7 @@ class Player {
     this.phase += 0.08;
 
     if (typeof playerSprite !== 'undefined' && playerSprite) {
+      // Rendu sprite du joueur (orienté selon lastMoveDir)
       let dir = this.lastMoveDir.copy();
       if (dir.mag() === 0) dir = createVector(0, -1);
       let heading = dir.heading() + HALF_PI;
@@ -428,6 +433,7 @@ class Player {
       image(playerSprite, 0, 0, w, h);
 
       if (this.shieldHits > 0 || invul) {
+        // Rendu bouclier: sprite généré (shieldSprite) + fallback cercle si indisponible
         push();
         blendMode(ADD);
         let a = invul ? min(220, alpha) : min(170, alpha);
@@ -609,6 +615,7 @@ let enemyIdCounter = 1;
 class Enemy extends Vehicule {
   constructor(x, y) {
     super(x, y);
+    // Enemy: hérite du steering et applique ses propres paramètres (hp, comportements, sprites)
     this.id = enemyIdCounter++;
     this.r = 13;
     this.maxSpeed = 2.3;

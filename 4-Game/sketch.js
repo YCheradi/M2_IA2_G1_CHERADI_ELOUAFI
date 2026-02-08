@@ -1,5 +1,8 @@
+// --- Game state & main collections (p5.js loop) ---
+// Le jeu alterne entre plusieurs états UI (menu / playing / levelup / aidchoice / shop / gameover).
 let state = 'menu';
 
+// Entités principales
 let player;
 let enemies = [];
 let projectiles = [];
@@ -13,6 +16,7 @@ let beams = [];
 let aids = [];
 let snakes = [];
 
+// Monde (chunks, obstacles/planètes, caméra)
 let obstacles = [];
 let path;
 
@@ -21,6 +25,7 @@ let planetChunks = new Map();
 let starChunks = new Map();
 let visibleObstacles = [];
 
+// Particules (thrusters, impacts, etc.)
 let particles = [];
 
 let cameraPos;
@@ -28,6 +33,7 @@ let cameraPos;
 let shakePower = 0;
 let shakeUntilMs = 0;
 
+// Options runtime (peuvent être togglées au clavier)
 let settings = {
   sfx: true,
   particles: true,
@@ -43,6 +49,7 @@ let voidBeamSettings = {
   durationMs: null,
 };
 
+// --- Assets sprites (chargés dans preload/setup) ---
 let playerSprite;
 let playerVehicleSprites = [];
 let selectedPlayerVehicleIdx = 0;
@@ -52,15 +59,20 @@ let minibossSprites = [];
 let bossSprites = [];
 let snakeSprite;
 
+// Sprite de bouclier généré dynamiquement (createGraphics) pour éviter une dépendance à un fichier externe.
 let shieldSprite;
 
+// Sprite du laser (utilisé pour les beams laser et les projectiles laser en fallback)
 let laserSprite;
 
+// --- Explosions animées (GIFs) ---
 let explosionImgs = [];
 let explosions = [];
 
+// --- Effets plein écran (freeze, nuke, etc.) ---
 let screenEffects = [];
 
+// Effet plein écran temporaire (dessiné en screen-space, après le monde)
 class ScreenEffect {
   constructor(kind, durationMs) {
     this.kind = kind;
@@ -72,59 +84,282 @@ class ScreenEffect {
     if (millis() - this.startMs >= this.durationMs) this.dead = true;
   }
   draw() {
-    if (this.kind !== 'freeze') return;
     let t = max(0, min(1, (millis() - this.startMs) / max(1, this.durationMs)));
-    let ease = 1 - pow(1 - t, 2.2);
-    let a = 220 * (1 - t);
     let cx = width * 0.5;
     let cy = height * 0.5;
     let maxR = max(width, height) * 0.95;
 
-    push();
-    blendMode(ADD);
-    noStroke();
+    if (this.kind === 'freeze') {
+      let ease = 1 - pow(1 - t, 2.2);
+      let a = 220 * (1 - t);
 
-    fill(140, 210, 255, a * 0.10);
-    rect(0, 0, width, height);
+      push();
+      blendMode(ADD);
+      noStroke();
 
-    for (let i = 0; i < 7; i++) {
-      let u = i / 6;
-      let rr = maxR * (0.18 + ease * (0.92 + 0.22 * u));
-      let aa = a * (0.25 * (1 - u)) * (1 - 0.35 * ease);
-      fill(160, 220, 255, aa * 0.22);
-      circle(cx, cy, rr * 2);
+      fill(140, 210, 255, a * 0.10);
+      rect(0, 0, width, height);
+
+      for (let i = 0; i < 7; i++) {
+        let u = i / 6;
+        let rr = maxR * (0.18 + ease * (0.92 + 0.22 * u));
+        let aa = a * (0.25 * (1 - u)) * (1 - 0.35 * ease);
+        fill(160, 220, 255, aa * 0.22);
+        circle(cx, cy, rr * 2);
+      }
+
+      noFill();
+      stroke(210, 250, 255, a * 0.95);
+      strokeWeight(6);
+      circle(cx, cy, maxR * (0.22 + ease * 1.15) * 2);
+      stroke(255, 255, 255, a * 0.55);
+      strokeWeight(2);
+      circle(cx, cy, maxR * (0.18 + ease * 1.06) * 2);
+
+      let rays = 46;
+      stroke(170, 230, 255, a * 0.35);
+      strokeWeight(2);
+      for (let i = 0; i < rays; i++) {
+        let ang = (i / rays) * TWO_PI;
+        let wob = 0.35 * sin((this.startMs * 0.001) + i);
+        let r0 = maxR * (0.08 + ease * 0.15);
+        let r1 = maxR * (0.22 + ease * 1.08) * (0.75 + 0.25 * sin(i * 2.1 + this.startMs * 0.002));
+        let x0 = cx + cos(ang + wob) * r0;
+        let y0 = cy + sin(ang + wob) * r0;
+        let x1 = cx + cos(ang + wob) * r1;
+        let y1 = cy + sin(ang + wob) * r1;
+        line(x0, y0, x1, y1);
+      }
+
+      blendMode(BLEND);
+      pop();
+      return;
     }
 
-    noFill();
-    stroke(210, 250, 255, a * 0.95);
-    strokeWeight(6);
-    circle(cx, cy, maxR * (0.22 + ease * 1.15) * 2);
-    stroke(255, 255, 255, a * 0.55);
-    strokeWeight(2);
-    circle(cx, cy, maxR * (0.18 + ease * 1.06) * 2);
+    if (this.kind === 'nuke' || this.kind === 'mega_nuke') {
+      let mega = this.kind === 'mega_nuke';
+      let ease = 1 - pow(1 - t, mega ? 2.8 : 2.4);
+      let a = (mega ? 255 : 235) * (1 - t);
+      let col0 = mega ? [255, 120, 80] : [255, 160, 90];
+      let col1 = mega ? [255, 240, 200] : [255, 230, 170];
 
-    let rays = 46;
-    stroke(170, 230, 255, a * 0.35);
-    strokeWeight(2);
-    for (let i = 0; i < rays; i++) {
-      let ang = (i / rays) * TWO_PI;
-      let wob = 0.35 * sin((this.startMs * 0.001) + i);
-      let r0 = maxR * (0.08 + ease * 0.15);
-      let r1 = maxR * (0.22 + ease * 1.08) * (0.75 + 0.25 * sin(i * 2.1 + this.startMs * 0.002));
-      let x0 = cx + cos(ang + wob) * r0;
-      let y0 = cy + sin(ang + wob) * r0;
-      let x1 = cx + cos(ang + wob) * r1;
-      let y1 = cy + sin(ang + wob) * r1;
-      line(x0, y0, x1, y1);
+      push();
+      blendMode(ADD);
+      noStroke();
+
+      fill(col0[0], col0[1], col0[2], a * (mega ? 0.16 : 0.12));
+      rect(0, 0, width, height);
+
+      for (let i = 0; i < (mega ? 10 : 7); i++) {
+        let u = i / (mega ? 9 : 6);
+        let rr = maxR * (0.10 + ease * (0.95 + 0.35 * u));
+        let aa = a * (0.30 * (1 - u)) * (1 - 0.25 * ease);
+        fill(col0[0], col0[1], col0[2], aa * 0.14);
+        circle(cx, cy, rr * 2);
+      }
+
+      noFill();
+      stroke(col1[0], col1[1], col1[2], a * 0.95);
+      strokeWeight(mega ? 10 : 7);
+      circle(cx, cy, maxR * (0.16 + ease * 1.25) * 2);
+      stroke(255, 255, 255, a * 0.45);
+      strokeWeight(mega ? 4 : 3);
+      circle(cx, cy, maxR * (0.12 + ease * 1.17) * 2);
+
+      let rays = mega ? 74 : 56;
+      stroke(col1[0], col1[1], col1[2], a * 0.32);
+      strokeWeight(mega ? 3 : 2);
+      for (let i = 0; i < rays; i++) {
+        let ang = (i / rays) * TWO_PI;
+        let wob = (mega ? 0.55 : 0.35) * sin((this.startMs * 0.001) + i);
+        let r0 = maxR * (0.06 + ease * 0.20);
+        let r1 = maxR * (0.18 + ease * 1.12) * (0.72 + 0.28 * sin(i * 1.7 + this.startMs * 0.002));
+        let x0 = cx + cos(ang + wob) * r0;
+        let y0 = cy + sin(ang + wob) * r0;
+        let x1 = cx + cos(ang + wob) * r1;
+        let y1 = cy + sin(ang + wob) * r1;
+        line(x0, y0, x1, y1);
+      }
+
+      blendMode(BLEND);
+      pop();
     }
 
-    blendMode(BLEND);
-    pop();
+    if (this.kind === 'spell_shield') {
+      let ease = 1 - pow(1 - t, 2.4);
+      let a = 240 * (1 - t);
+      push();
+      blendMode(ADD);
+      noStroke();
+      fill(120, 220, 255, a * 0.12);
+      rect(0, 0, width, height);
+
+      for (let i = 0; i < 8; i++) {
+        let u = i / 7;
+        let rr = maxR * (0.10 + ease * (0.45 + 0.55 * u));
+        let aa = a * (0.22 * (1 - u));
+        fill(140, 235, 255, aa * 0.18);
+        circle(cx, cy, rr * 2);
+      }
+
+      noFill();
+      stroke(200, 250, 255, a * 0.95);
+      strokeWeight(7);
+      circle(cx, cy, maxR * (0.12 + ease * 0.62) * 2);
+      stroke(255, 255, 255, a * 0.55);
+      strokeWeight(2);
+      circle(cx, cy, maxR * (0.10 + ease * 0.58) * 2);
+
+      blendMode(BLEND);
+      pop();
+      return;
+    }
+
+    if (this.kind === 'chain_lightning') {
+      let ease = 1 - pow(1 - t, 2.0);
+      let a = 255 * (1 - t);
+      push();
+      blendMode(ADD);
+      noFill();
+      stroke(160, 220, 255, a * 0.28);
+      strokeWeight(3);
+      for (let i = 0; i < 12; i++) {
+        let u = i / 11;
+        let rr = maxR * (0.10 + ease * (0.38 + 0.40 * u));
+        circle(cx, cy, rr * 2);
+      }
+
+      let rays = 48;
+      stroke(210, 245, 255, a * 0.75);
+      strokeWeight(2);
+      for (let i = 0; i < rays; i++) {
+        let ang = (i / rays) * TWO_PI;
+        let r0 = maxR * (0.10 + ease * 0.10);
+        let r1 = maxR * (0.22 + ease * 0.78) * (0.78 + 0.22 * sin(i * 2.3 + this.startMs * 0.004));
+        let zig = 0.10 * sin(i * 1.7 + this.startMs * 0.006);
+        let x0 = cx + cos(ang) * r0;
+        let y0 = cy + sin(ang) * r0;
+        let xm = cx + cos(ang + zig) * ((r0 + r1) * 0.5);
+        let ym = cy + sin(ang + zig) * ((r0 + r1) * 0.5);
+        let x1 = cx + cos(ang) * r1;
+        let y1 = cy + sin(ang) * r1;
+        line(x0, y0, xm, ym);
+        line(xm, ym, x1, y1);
+      }
+
+      blendMode(BLEND);
+      pop();
+      return;
+    }
+
+    if (this.kind === 'ship_interceptor' || this.kind === 'ship_bomber') {
+      let bomber = this.kind === 'ship_bomber';
+      let ease = 1 - pow(1 - t, bomber ? 2.2 : 2.6);
+      let a = 245 * (1 - t);
+      let col0 = bomber ? [255, 170, 90] : [120, 255, 180];
+      let col1 = bomber ? [255, 240, 190] : [200, 255, 230];
+      push();
+      blendMode(ADD);
+      noStroke();
+      fill(col0[0], col0[1], col0[2], a * 0.10);
+      rect(0, 0, width, height);
+
+      for (let i = 0; i < (bomber ? 7 : 9); i++) {
+        let u = i / ((bomber ? 6 : 8));
+        let rr = maxR * (0.08 + ease * (0.36 + 0.18 * u));
+        let aa = a * (0.22 * (1 - u));
+        fill(col0[0], col0[1], col0[2], aa * 0.16);
+        circle(cx, cy, rr * 2);
+      }
+
+      noFill();
+      stroke(col1[0], col1[1], col1[2], a * 0.95);
+      strokeWeight(bomber ? 8 : 6);
+      circle(cx, cy, maxR * (0.11 + ease * 0.52) * 2);
+      stroke(255, 255, 255, a * 0.45);
+      strokeWeight(2);
+      circle(cx, cy, maxR * (0.10 + ease * 0.48) * 2);
+
+      let rays = bomber ? 38 : 52;
+      stroke(col1[0], col1[1], col1[2], a * 0.30);
+      strokeWeight(2);
+      for (let i = 0; i < rays; i++) {
+        let ang = (i / rays) * TWO_PI;
+        let r0 = maxR * (0.06 + ease * 0.10);
+        let r1 = maxR * (0.12 + ease * 0.78) * (0.78 + 0.22 * sin(i * 2.0 + this.startMs * 0.003));
+        let x0 = cx + cos(ang) * r0;
+        let y0 = cy + sin(ang) * r0;
+        let x1 = cx + cos(ang) * r1;
+        let y1 = cy + sin(ang) * r1;
+        line(x0, y0, x1, y1);
+      }
+
+      blendMode(BLEND);
+      pop();
+    }
+
+    if (this.kind === 'weapon_laser' || this.kind === 'weapon_ion') {
+      let laser = this.kind === 'weapon_laser';
+      let ease = 1 - pow(1 - t, laser ? 2.4 : 2.1);
+      let a = 250 * (1 - t);
+      let col0 = laser ? [140, 210, 255] : [180, 235, 255];
+      let col1 = laser ? [255, 255, 255] : [220, 250, 255];
+
+      push();
+      blendMode(ADD);
+      noStroke();
+      fill(col0[0], col0[1], col0[2], a * (laser ? 0.10 : 0.08));
+      rect(0, 0, width, height);
+
+      noFill();
+      stroke(col0[0], col0[1], col0[2], a * 0.75);
+      strokeWeight(laser ? 7 : 6);
+      circle(cx, cy, maxR * (0.14 + ease * 0.70) * 2);
+      stroke(col1[0], col1[1], col1[2], a * 0.55);
+      strokeWeight(2);
+      circle(cx, cy, maxR * (0.12 + ease * 0.64) * 2);
+
+      let rays = laser ? 62 : 42;
+      stroke(col1[0], col1[1], col1[2], a * (laser ? 0.32 : 0.22));
+      strokeWeight(2);
+      for (let i = 0; i < rays; i++) {
+        let ang = (i / rays) * TWO_PI;
+        let wob = (laser ? 0.25 : 0.15) * sin((this.startMs * 0.001) + i);
+        let r0 = maxR * (0.06 + ease * 0.14);
+        let r1 = maxR * (0.16 + ease * 0.92) * (0.78 + 0.22 * sin(i * 2.0 + this.startMs * 0.003));
+        let x0 = cx + cos(ang + wob) * r0;
+        let y0 = cy + sin(ang + wob) * r0;
+        let x1 = cx + cos(ang + wob) * r1;
+        let y1 = cy + sin(ang + wob) * r1;
+        line(x0, y0, x1, y1);
+      }
+
+      blendMode(BLEND);
+      pop();
+      return;
+    }
   }
 }
 
+// Déclenche l'effet plein écran de freeze (feedback visuel quand la compétence est choisie)
 function spawnFreezeScreenExplosion() {
   screenEffects.push(new ScreenEffect('freeze', 900));
+}
+
+// Déclenche l'effet plein écran pour Nuke / Mega Nuke
+function spawnNukeScreenExplosion(type) {
+  if (type === 'mega_nuke') screenEffects.push(new ScreenEffect('mega_nuke', 760));
+  else screenEffects.push(new ScreenEffect('nuke', 620));
+}
+
+// Petit helper: effets UI plein écran lors du choix d'une carte (Weapons/Spells/Ship)
+function spawnAidScreenEffect(kind) {
+  if (kind === 'spell_shield') screenEffects.push(new ScreenEffect('spell_shield', 540));
+  else if (kind === 'chain_lightning') screenEffects.push(new ScreenEffect('chain_lightning', 520));
+  else if (kind === 'ship_interceptor') screenEffects.push(new ScreenEffect('ship_interceptor', 620));
+  else if (kind === 'ship_bomber') screenEffects.push(new ScreenEffect('ship_bomber', 680));
+  else if (kind === 'weapon_laser') screenEffects.push(new ScreenEffect('weapon_laser', 520));
+  else if (kind === 'weapon_ion') screenEffects.push(new ScreenEffect('weapon_ion', 520));
 }
 
 class Explosion {
@@ -215,6 +450,7 @@ function spawnExplosion(x, y, sizeMul = 1, durationMs = 520) {
 function killEnemy(e) {
   if (!e || e.dead) return;
   e.dead = true;
+  playSfx('kill');
   let mul = e.isBoss ? 2.2 : (e.isElite ? 1.55 : 1.0);
   spawnExplosion(e.pos.x, e.pos.y, mul, e.isBoss ? 900 : (e.isElite ? 700 : 520));
   dropGemsForEnemy(e);
@@ -230,6 +466,13 @@ function setPlayerVehicle(idx) {
 
 let audioCtx = null;
 let masterGain = null;
+
+let sfxBuffers = {};
+let sfxLoadingStarted = false;
+
+// --- Audio ---
+// SFX: chargés en AudioBuffer (mp3) via WebAudio.
+// Fallback: si le buffer n'est pas prêt, playSfx() joue un petit "bip" (oscillator).
 
 let hudDiv;
 let overlayDiv;
@@ -266,6 +509,8 @@ let loadingStableFrames = 0;
 let warmupUntilMs = 0;
 
 let shimmerEnableAtMs = 0;
+
+// Warmup: au tout début, on évite les passes lourdes (postFx/hyperspace/etc.) pour réduire les artefacts.
 
 function inWarmup() {
   return millis() < warmupUntilMs;
@@ -495,10 +740,15 @@ function showShop(choices) {
   panelDiv.html('');
 
   let bal = playerShopBalance();
-  let h = createElement('h1', 'Shop');
-  let p = createP('Solde: ' + bal + ' XP');
-  panelDiv.child(h);
-  panelDiv.child(p);
+  panelDiv.html(
+    '<div class="ui-header">'
+    + '<div>'
+    + '<div class="ui-title">Star Wars: BattleSpace</div>'
+    + '<div class="ui-subtitle">Marchand — choisis une amélioration</div>'
+    + '</div>'
+    + '<div class="ui-meta">Solde: <b>' + bal + '</b> XP</div>'
+    + '</div>'
+  );
 
   choicesDiv = createDiv('');
   choicesDiv.id('choices');
@@ -507,9 +757,24 @@ function showShop(choices) {
   choices.forEach((c, idx) => {
     let affordable = bal >= c.cost;
     let card = createDiv('');
-    card.class('choice');
+    let cat = 'upgrade';
+    if (c && typeof c.type === 'string') {
+      if (c.type.indexOf('weapon_') === 0) cat = 'weapon';
+      else if (c.type.indexOf('spell_') === 0 || c.type === 'freeze' || c.type === 'chain_lightning') cat = 'spell';
+      else if (c.type.indexOf('ship_') === 0) cat = 'ship';
+      else if (c.type === 'nuke' || c.type === 'mega_nuke') cat = 'explosive';
+      else if (c.type === 'drone') cat = 'ally';
+    }
+    card.class('choice choice--' + cat);
     let title = c.title + ' <span style="opacity:0.85">(' + c.cost + ')</span>';
-    card.html('<b>[' + (idx + 1) + ']</b> ' + title + '<br><span style="opacity:0.9">' + c.desc + '</span>' + (affordable ? '' : '<div style="opacity:0.75;margin-top:6px">Pas assez de XP</div>'));
+    card.html(
+      '<div class="choice-title">'
+      + '<div><b>[' + (idx + 1) + ']</b> ' + title + '</div>'
+      + '<span class="tag">' + cat + '</span>'
+      + '</div>'
+      + '<div style="opacity:0.9">' + c.desc + '</div>'
+      + (affordable ? '' : '<div style="opacity:0.75;margin-top:8px">Pas assez de XP</div>')
+    );
     if (affordable) {
       card.mousePressed(() => {
         buyShopChoice(c);
@@ -691,10 +956,15 @@ function showAidChoice(choices) {
   choicesDiv.show();
   panelDiv.html('');
 
-  let h = createElement('h1', 'Aid');
-  let p = createP('Choisis 1 amélioration:');
-  panelDiv.child(h);
-  panelDiv.child(p);
+  panelDiv.html(
+    '<div class="ui-header">'
+    + '<div>'
+    + '<div class="ui-title">Star Wars: BattleSpace</div>'
+    + '<div class="ui-subtitle">Récompense — choisis 1 carte</div>'
+    + '</div>'
+    + '<div class="ui-meta">Raccourcis: <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span></div>'
+    + '</div>'
+  );
 
   choicesDiv = createDiv('');
   choicesDiv.id('choices');
@@ -702,8 +972,22 @@ function showAidChoice(choices) {
 
   choices.forEach((c, idx) => {
     let card = createDiv('');
-    card.class('choice');
-    card.html('<b>[' + (idx + 1) + ']</b> ' + c.title + '<br><span style="opacity:0.9">' + c.desc + '</span>');
+    let cat = 'upgrade';
+    if (c && typeof c.type === 'string') {
+      if (c.type.indexOf('weapon_') === 0) cat = 'weapon';
+      else if (c.type.indexOf('spell_') === 0 || c.type === 'freeze' || c.type === 'chain_lightning') cat = 'spell';
+      else if (c.type.indexOf('ship_') === 0) cat = 'ship';
+      else if (c.type === 'nuke' || c.type === 'mega_nuke') cat = 'explosive';
+      else if (c.type === 'drone') cat = 'ally';
+    }
+    card.class('choice choice--' + cat);
+    card.html(
+      '<div class="choice-title">'
+      + '<div><b>[' + (idx + 1) + ']</b> ' + c.title + '</div>'
+      + '<span class="tag">' + cat + '</span>'
+      + '</div>'
+      + '<div style="opacity:0.9">' + c.desc + '</div>'
+    );
     card.mousePressed(() => {
       applyAid(c.type);
       overlayDiv.hide();
@@ -719,18 +1003,22 @@ function applyAid(type) {
   if (type === 'weapon_laser') {
     player.weaponMode = 'laser';
     player.weaponModeUntilMs = now + 12000;
+    spawnAidScreenEffect('weapon_laser');
   } else if (type === 'weapon_ion') {
     player.weaponMode = 'ion';
     player.weaponModeUntilMs = now + 12000;
+    spawnAidScreenEffect('weapon_ion');
   } else if (type === 'spell_shield') {
     player.shieldHits = (player.shieldHits || 0) + 3;
     playSfx('pickup');
+    spawnAidScreenEffect('spell_shield');
   } else if (type === 'freeze') {
     freezeUntilMs = max(freezeUntilMs, now + 5200);
-    playSfx('pickup');
+    playSfx('freeze');
     spawnFreezeScreenExplosion();
     addShake(3.2);
   } else if (type === 'chain_lightning') {
+    spawnAidScreenEffect('chain_lightning');
     if (typeof chainLightningBurst === 'function') {
       chainLightningBurst();
     } else {
@@ -749,11 +1037,13 @@ function applyAid(type) {
     player.shipBuffType = 'interceptor';
     player.shipBuffUntilMs = now + 14000;
     playSfx('pickup');
+    spawnAidScreenEffect('ship_interceptor');
   } else if (type === 'ship_bomber') {
     player.shipType = 'bomber';
     player.shipBuffType = 'bomber';
     player.shipBuffUntilMs = now + 14000;
     playSfx('pickup');
+    spawnAidScreenEffect('ship_bomber');
   } else if (type === 'repair') {
     player.hp = min(upgrades.maxHp, player.hp + 32);
     player.shieldHits = (player.shieldHits || 0) + 1;
@@ -763,9 +1053,29 @@ function applyAid(type) {
     playSfx('pickup');
   } else if (type === 'nuke' || type === 'mega_nuke') {
     playSfx('explosion');
+    spawnNukeScreenExplosion(type);
     addShake(type === 'mega_nuke' ? 6.2 : 4.8);
     let rad = type === 'mega_nuke' ? 520 : 380;
     let dmg = type === 'mega_nuke' ? 320 : 220;
+
+    {
+      let rings = type === 'mega_nuke' ? 2 : 1;
+      let bursts = type === 'mega_nuke' ? 14 : 9;
+      for (let r = 0; r < rings; r++) {
+        let rr = rad * (0.55 + r * 0.30);
+        for (let i = 0; i < bursts; i++) {
+          let ang = (i / bursts) * TWO_PI + random(-0.12, 0.12);
+          let px = player.pos.x + cos(ang) * rr + random(-18, 18);
+          let py = player.pos.y + sin(ang) * rr + random(-18, 18);
+          let sm = type === 'mega_nuke' ? random(1.35, 2.1) : random(1.1, 1.75);
+          let dur = type === 'mega_nuke' ? floor(random(700, 1050)) : floor(random(520, 820));
+          spawnExplosion(px, py, sm, dur);
+        }
+      }
+
+      spawnExplosion(player.pos.x, player.pos.y, type === 'mega_nuke' ? 2.8 : 2.0, type === 'mega_nuke' ? 1100 : 850);
+    }
+
     for (let e of enemies) {
       if (!e || e.dead) continue;
       let d = p5.Vector.dist(e.pos, player.pos);
@@ -853,11 +1163,56 @@ function ensureAudio() {
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0.22;
     masterGain.connect(audioCtx.destination);
+    startLoadingSfx();
   } catch (e) {
     audioCtx = null;
     masterGain = null;
     settings.sfx = false;
   }
+}
+
+function startLoadingSfx() {
+  if (sfxLoadingStarted) return;
+  if (!audioCtx) return;
+  sfxLoadingStarted = true;
+
+  let map = {
+    dash: 'assets/sound/dash_sound.mp3',
+    explosion: 'assets/sound/Explosion_sound.mp3',
+    freeze: 'assets/sound/freeze_sound.mp3',
+    hit: 'assets/sound/ennimie_sound.mp3',
+    kill: 'assets/sound/detruit_sound.mp3',
+    boss: 'assets/sound/Boss_sound.mp3',
+    laser: 'assets/sound/laser_sound.mp3',
+  };
+
+  Object.keys(map).forEach((k) => {
+    let url = encodeURI(map[k]);
+    fetch(url)
+      .then((r) => r.arrayBuffer())
+      .then((buf) => audioCtx.decodeAudioData(buf))
+      .then((audioBuf) => {
+        sfxBuffers[k] = audioBuf;
+      })
+      .catch(() => {});
+  });
+}
+
+function playSfxBuffer(key, vol = 1) {
+  if (!settings.sfx) return false;
+  if (!audioCtx || !masterGain) return false;
+  if (audioCtx.state === 'suspended') return false;
+  let buf = sfxBuffers ? sfxBuffers[key] : null;
+  if (!buf) return false;
+
+  let src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  let g = audioCtx.createGain();
+  g.gain.value = max(0, min(1, vol));
+  src.connect(g);
+  g.connect(masterGain);
+  src.start(0);
+  return true;
 }
 
 class Drone {
@@ -904,12 +1259,29 @@ function resumeAudioIfNeeded() {
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
+  startLoadingSfx();
 }
 
 function playSfx(type) {
   if (!settings.sfx) return;
   if (!audioCtx || !masterGain) return;
   if (audioCtx.state === 'suspended') return;
+
+  if (type === 'beam') {
+    if (playSfxBuffer('laser', 0.7)) return;
+  } else if (type === 'freeze') {
+    if (playSfxBuffer('freeze', 0.9)) return;
+  } else if (type === 'dash') {
+    if (playSfxBuffer('dash', 0.85)) return;
+  } else if (type === 'explosion') {
+    if (playSfxBuffer('explosion', 0.95)) return;
+  } else if (type === 'hit') {
+    if (playSfxBuffer('hit', 0.6)) return;
+  } else if (type === 'kill') {
+    if (playSfxBuffer('kill', 0.8)) return;
+  } else if (type === 'boss') {
+    if (playSfxBuffer('boss', 0.95)) return;
+  }
 
   let now = audioCtx.currentTime;
   let o = audioCtx.createOscillator();
@@ -1639,19 +2011,39 @@ function showMenu() {
   choicesDiv.hide();
   panelDiv.html('');
 
-  let h = createElement('h1', 'Survive (VS-like)');
-  let p = createP('ZQSD pour bouger. Ton arme tire automatiquement. Ramasse les gemmes XP pour level-up.');
-  let p2 = createP('Touches: <span class="kbd">Entrée</span> commencer | <span class="kbd">P</span> pause');
-  let p3 = createP('En jeu: level-up => clique une carte ou appuie <span class="kbd">1</span>/<span class="kbd">2</span>/<span class="kbd">3</span>.');
-  let p4 = createP('Difficulté: <span class="kbd">C</span> casual (' + (settings.casual ? 'ON' : 'OFF') + ')');
-  let p5 = createP('Véhicule: <span class="kbd">1</span>/<span class="kbd">2</span>/<span class="kbd">3</span> (actuel: ' + (selectedPlayerVehicleIdx === 0 ? 'Default' : ('Player ' + selectedPlayerVehicleIdx)) + ')');
-
-  panelDiv.child(h);
-  panelDiv.child(p);
-  panelDiv.child(p2);
-  panelDiv.child(p3);
-  panelDiv.child(p4);
-  panelDiv.child(p5);
+  let veh = (selectedPlayerVehicleIdx === 0 ? 'Default' : ('Player ' + selectedPlayerVehicleIdx));
+  panelDiv.html(
+    '<div class="ui-header">'
+    + '<div>'
+    + '<div class="ui-title">Star Wars: BattleSpace</div>'
+    + '<div class="ui-subtitle">Survis aux vagues ennemies et améliore ton vaisseau</div>'
+    + '</div>'
+    + '<div class="ui-meta">Véhicule: <b>' + veh + '</b></div>'
+    + '</div>'
+    + '<div class="ui-grid">'
+    + '<div class="ui-box">'
+    + '<div style="opacity:0.92">Contrôles</div>'
+    + '<div style="margin-top:8px;opacity:0.9">'
+    + '<div><span class="kbd">ZQSD</span> bouger</div>'
+    + '<div style="margin-top:6px"><span class="kbd">Shift</span> dash</div>'
+    + '<div style="margin-top:6px"><span class="kbd">P</span> pause</div>'
+    + '<div style="margin-top:6px"><span class="kbd">R</span> restart (game over)</div>'
+    + '</div>'
+    + '<div class="ui-actions">'
+    + '<div class="btn"><strong>Entrée</strong> démarrer</div>'
+    + '<div class="btn"><strong>1</strong>/<strong>2</strong>/<strong>3</strong> vaisseau</div>'
+    + '<div class="btn"><strong>C</strong> casual: ' + (settings.casual ? 'ON' : 'OFF') + '</div>'
+    + '</div>'
+    + '</div>'
+    + '<div class="ui-box">'
+    + '<div style="opacity:0.92">Objectif</div>'
+    + '<div style="margin-top:8px;opacity:0.9">'
+    + 'Ton arme tire automatiquement. Ramasse les gemmes XP pour level-up et choisir des cartes.'
+    + '</div>'
+    + '<div class="ui-subtitle" style="margin-top:10px">Pendant un choix: <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span></div>'
+    + '</div>'
+    + '</div>'
+  );
 }
 
 function showGameOver() {
@@ -1661,15 +2053,25 @@ function showGameOver() {
   panelDiv.html('');
 
   let survived = ((millis() - startMs) / 1000).toFixed(1);
-  let h = createElement('h1', 'Game Over');
-  let p = createP('Tu as survécu ' + survived + ' secondes.');
-  let p2 = createP('Appuie <span class="kbd">R</span> pour recommencer.');
-  let p3 = createP('Véhicule: <span class="kbd">1</span>/<span class="kbd">2</span>/<span class="kbd">3</span> (actuel: ' + (selectedPlayerVehicleIdx === 0 ? 'Default' : ('Player ' + selectedPlayerVehicleIdx)) + ')');
-
-  panelDiv.child(h);
-  panelDiv.child(p);
-  panelDiv.child(p2);
-  panelDiv.child(p3);
+  let veh = (selectedPlayerVehicleIdx === 0 ? 'Default' : ('Player ' + selectedPlayerVehicleIdx));
+  panelDiv.html(
+    '<div class="ui-header">'
+    + '<div>'
+    + '<div class="ui-title">Mission Failed</div>'
+    + '<div class="ui-subtitle">Star Wars: BattleSpace</div>'
+    + '</div>'
+    + '<div class="ui-meta">Véhicule: <b>' + veh + '</b></div>'
+    + '</div>'
+    + '<div class="ui-box">'
+    + '<div style="opacity:0.92">Bilan</div>'
+    + '<div style="margin-top:8px;opacity:0.9">Survie: <b>' + survived + 's</b></div>'
+    + '<div style="margin-top:6px;opacity:0.9">Appuie <span class="kbd">R</span> pour recommencer</div>'
+    + '</div>'
+    + '<div class="ui-actions">'
+    + '<div class="btn"><strong>R</strong> restart</div>'
+    + '<div class="btn"><strong>1</strong>/<strong>2</strong>/<strong>3</strong> vaisseau</div>'
+    + '</div>'
+  );
 }
 
 function showLevelUp(choices) {
@@ -1678,9 +2080,17 @@ function showLevelUp(choices) {
   choicesDiv.show();
   panelDiv.html('');
 
-  let h = createElement('h1', 'Level Up');
+  panelDiv.html(
+    '<div class="ui-header">'
+    + '<div>'
+    + '<div class="ui-title">Level Up</div>'
+    + '<div class="ui-subtitle">Choisis une amélioration</div>'
+    + '</div>'
+    + '<div class="ui-meta">Raccourcis: <span class="kbd">1</span> <span class="kbd">2</span> <span class="kbd">3</span></div>'
+    + '</div>'
+  );
+
   let p = createP('Choisis une amélioration:');
-  panelDiv.child(h);
   panelDiv.child(p);
 
   choicesDiv = createDiv('');
@@ -1689,8 +2099,14 @@ function showLevelUp(choices) {
 
   choices.forEach((c, idx) => {
     let card = createDiv('');
-    card.class('choice');
-    card.html('<b>[' + (idx + 1) + ']</b> ' + c.title + '<br><span style="opacity:0.9">' + c.desc + '</span>');
+    card.class('choice choice--upgrade');
+    card.html(
+      '<div class="choice-title">'
+      + '<div><b>[' + (idx + 1) + ']</b> ' + c.title + '</div>'
+      + '<span class="tag">upgrade</span>'
+      + '</div>'
+      + '<div style="opacity:0.9">' + c.desc + '</div>'
+    );
     card.mousePressed(() => {
       applyUpgrade(c);
       overlayDiv.hide();
@@ -2076,8 +2492,8 @@ function draw() {
   drawWorld(false);
   if (!warmup) {
     drawBloomPass();
-    if (frameCount % perfTuning.minimapEveryNFrames === 0) drawMiniMap();
   }
+  drawMiniMap();
 
   for (let fx of screenEffects) fx.draw();
 
@@ -2144,6 +2560,50 @@ function drawWorld(ghost) {
   for (let e of enemies) (e.show ? e.show(alpha) : e.draw(alpha));
   for (let ex of explosions) (ex.show ? ex.show(alpha) : ex.draw(alpha));
   (player.show ? player.show(alpha) : player.draw(alpha));
+
+  if (!ghost && player && player.weaponModeUntilMs && millis() < player.weaponModeUntilMs) {
+    let now = millis();
+    let t = max(0, min(1, (player.weaponModeUntilMs - now) / 12000));
+    let a = 210 * (0.35 + 0.65 * t);
+    let laser = player.weaponMode === 'laser';
+    let col = laser ? [140, 210, 255] : [180, 235, 255];
+    let col2 = laser ? [255, 255, 255] : [220, 250, 255];
+    let r = max(24, player.r * 1.45);
+    push();
+    blendMode(ADD);
+    noFill();
+    stroke(col[0], col[1], col[2], a * (laser ? 0.70 : 0.55));
+    strokeWeight(laser ? 7 : 6);
+    circle(player.pos.x, player.pos.y, r * 2);
+    stroke(col2[0], col2[1], col2[2], a * 0.55);
+    strokeWeight(2);
+    circle(player.pos.x, player.pos.y, r * 2.35);
+    blendMode(BLEND);
+    pop();
+  }
+
+  if (!ghost && player && player.shipBuffUntilMs && millis() < player.shipBuffUntilMs) {
+    let now = millis();
+    let t = max(0, min(1, (player.shipBuffUntilMs - now) / 14000));
+    let a = 210 * (0.35 + 0.65 * t);
+    let col = (player.shipBuffType === 'bomber') ? [255, 170, 90] : [120, 255, 180];
+    let col2 = (player.shipBuffType === 'bomber') ? [255, 240, 190] : [200, 255, 230];
+    let r = max(26, player.r * 1.65);
+    push();
+    blendMode(ADD);
+    noFill();
+    stroke(col[0], col[1], col[2], a * 0.55);
+    strokeWeight(8);
+    circle(player.pos.x, player.pos.y, r * 2);
+    stroke(col2[0], col2[1], col2[2], a * 0.85);
+    strokeWeight(3);
+    circle(player.pos.x, player.pos.y, r * 2.32);
+    stroke(255, 255, 255, a * 0.35);
+    strokeWeight(2);
+    circle(player.pos.x, player.pos.y, r * 2.52);
+    blendMode(BLEND);
+    pop();
+  }
 
   if (!ghost && settings.heatShimmer && millis() >= shimmerEnableAtMs && frameCount % perfTuning.shimmerEveryNFrames === 0) {
     let now = millis();
@@ -2222,24 +2682,32 @@ function drawHud() {
 }
 
 function drawMiniMap() {
+  // Mini-map: overlay en screen-space (top-right), basée sur cameraPos + entités visibles.
   if (!cameraPos) return;
-  let w = 160;
-  let h = 110;
+  let w = 190;
+  let h = 130;
   let pad = 14;
   let x0 = width - w - pad;
   let y0 = pad;
   let scale = 0.085;
 
   push();
+  stroke(255, 230, 160, 185);
+  strokeWeight(2);
+  fill(0, 0, 0, 165);
+  rect(x0, y0, w, h, 12);
+
   noStroke();
-  fill(0, 0, 0, 90);
-  rect(x0, y0, w, h, 10);
+  fill(255, 230, 160, 155);
+  textAlign(LEFT, TOP);
+  textSize(11);
+  text('MAP', x0 + 10, y0 + 8);
 
   let cx = x0 + w * 0.5;
   let cy = y0 + h * 0.5;
 
-  fill(255, 255, 255, 180);
-  circle(cx, cy, 5);
+  fill(255, 255, 255, 220);
+  circle(cx, cy, 6);
 
   fill(120, 220, 255, 100);
   for (let o of visibleObstacles) {
@@ -2358,6 +2826,7 @@ function spawnBoss() {
 
   let b = new Enemy(x, y);
   b.isBoss = true;
+  playSfx('boss');
   b.r = 32;
   b.maxSpeed = 1.6;
   b.maxForce = 0.18;
