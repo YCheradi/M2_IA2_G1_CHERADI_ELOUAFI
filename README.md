@@ -5,6 +5,18 @@
 - **CHERADI Yassine**
 - **ELOUAFI Yasmine**
 
+## lien du projet
+
+https://yassinecheradi.github.io/M2_IA2_CASA_G1_2025_2026
+
+## lien Youtube
+
+https://youtu.be/98KA1S-qN7U
+
+## lien itch.io
+
+https://yassinecheradi.itch.io/star-wars-battlespace
+
 ## Présentation du projet
 
 **Star Wars: BattleSpace** est un jeu 2D type *survivor* réalisé avec **p5.js**.
